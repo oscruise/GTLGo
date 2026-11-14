@@ -53,6 +53,53 @@ namespace XboxGamingBar
             "citra-qt", "lime3ds", "melonds", "flycast", "redream", "shadps4", "mame", "mesen"
         };
 
+        /// <summary>
+        /// GTLGo: aplica LocalState\gtlgo_import_widget.json a los contenedores Profile_Game_&lt;nombre&gt;
+        /// (incluye _AC y _DC si existen) y renombra el archivo a .aplicado.
+        /// </summary>
+        private void ImportGtlgoWidgetPresets()
+        {
+            try
+            {
+                string dir = ApplicationData.Current.LocalFolder.Path;
+                string file = System.IO.Path.Combine(dir, "gtlgo_import_widget.json");
+                if (!System.IO.File.Exists(file)) return;
+                var arr = Windows.Data.Json.JsonArray.Parse(System.IO.File.ReadAllText(file));
+                var settings = ApplicationData.Current.LocalSettings;
+                int applied = 0;
+                foreach (var item in arr)
+                {
+                    var o = item.GetObject();
+                    string name = o.ContainsKey("name") ? o.GetNamedString("name") : null;
+                    if (string.IsNullOrEmpty(name)) continue;
+                    bool any = false;
+                    foreach (var suffix in new[] { "", "_AC", "_DC" })
+                    {
+                        string key = $"Profile_Game_{name}{suffix}";
+                        if (!settings.Containers.ContainsKey(key)) continue;
+                        var c = settings.Containers[key];
+                        string tdpKey = (suffix == "_DC" && o.ContainsKey("tdpDc")) ? "tdpDc" : "tdp";
+                        if (o.ContainsKey(tdpKey)) c.Values["TDP"] = o.GetNamedNumber(tdpKey);
+                        if (o.ContainsKey("autoTdp")) c.Values["AutoTDPEnabled"] = o.GetNamedBoolean("autoTdp");
+                        if (o.ContainsKey("targetFps")) c.Values["AutoTDPTargetFPS"] = (int)o.GetNamedNumber("targetFps");
+                        if (o.ContainsKey("minTdp")) c.Values["AutoTDPMinTDP"] = (int)o.GetNamedNumber("minTdp");
+                        if (o.ContainsKey("maxTdp")) c.Values["AutoTDPMaxTDP"] = (int)o.GetNamedNumber("maxTdp");
+                        c.Values["LastModifiedUtc"] = DateTime.UtcNow.Ticks;
+                        any = true;
+                    }
+                    if (any) applied++;
+                }
+                string done = file + ".aplicado";
+                if (System.IO.File.Exists(done)) System.IO.File.Delete(done);
+                System.IO.File.Move(file, done);
+                Logger.Info($"GTLGo: import de perfiles del widget: {applied} juegos actualizados");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: import de perfiles del widget falló: {ex.Message}");
+            }
+        }
+
         private void ApplyEmulatorOverlayDefault(PerformanceProfile profile)
         {
             try

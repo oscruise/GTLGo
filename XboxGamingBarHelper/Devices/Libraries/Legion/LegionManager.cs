@@ -814,6 +814,7 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
                     {
                         isControllerConnected = true;
                         isLegionGoDetected = true;
+                        ApplyGtlgoLegionSwapFile();
                         // Don't override SupportsControllerRemap here - respect the DeviceConfig value
                         // Legion Go S has different HID structure that doesn't support remapping even if controller connects
                         if (deviceInfo.SupportsControllerRemap)
@@ -3199,6 +3200,30 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
         /// <summary>
         /// Sets the Nintendo layout mode (swaps A↔B and X↔Y face buttons).
         /// </summary>
+        /// <summary>
+        /// GTLGo (experimental): LocalState\gtlgo_legion_swap.txt = "on"/"off" envía al control el
+        /// comando de intercambio (05 06 69 04 01 [02=on/01=off] 01) una sola vez y renombra el archivo.
+        /// </summary>
+        private void ApplyGtlgoLegionSwapFile()
+        {
+            try
+            {
+                string f = System.IO.Path.Combine(XboxGamingBarHelper.Profile.ProfileManager.LocalFolderPath, "gtlgo_legion_swap.txt");
+                if (!System.IO.File.Exists(f) || controllerService == null) return;
+                string v = System.IO.File.ReadAllText(f).Trim().ToLowerInvariant();
+                if (v != "on" && v != "off") return;
+                var r = controllerService.SetControllerSwap(v == "on");
+                Logger.Info($"GTLGo: swap Legion {v}: ok={r.Success} {r.Message}");
+                string done = f + ".aplicado";
+                if (System.IO.File.Exists(done)) System.IO.File.Delete(done);
+                System.IO.File.Move(f, done);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: swap Legion falló: {ex.Message}");
+            }
+        }
+
         public bool SetNintendoLayout(bool enabled, out string failureReason)
         {
             failureReason = null;

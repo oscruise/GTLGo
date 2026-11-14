@@ -169,10 +169,55 @@ namespace XboxGamingBarHelper.Profile
                 }
             }
 
+            ImportGtlgoPresets();
+
             Logger.Info("Initialize game profile properties.");
             perGameProfile = new PerGameProfileProperty(null, this);
             currentProfile = new GameProfileProperty(GlobalProfile, this);
             deleteGameProfile = new DeleteGameProfileProperty(this);
+        }
+
+        /// <summary>
+        /// GTLGo: aplica ajustes masivos a perfiles existentes desde LocalState\gtlgo_import_helper.json
+        /// [{"name":"...","tdp":30,"tdpDc":30,"autoTdp":true,"targetFps":60,"minTdp":8,"maxTdp":20}]
+        /// y lo renombra a .aplicado para que corra una sola vez.
+        /// </summary>
+        private void ImportGtlgoPresets()
+        {
+            string file = Path.Combine(LocalFolderPath, "gtlgo_import_helper.json");
+            if (!File.Exists(file)) return;
+            int applied = 0, missing = 0;
+            try
+            {
+                using (var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file)))
+                {
+                    foreach (var e in doc.RootElement.EnumerateArray())
+                    {
+                        string name = e.TryGetProperty("name", out var nm) ? nm.GetString() : null;
+                        if (string.IsNullOrEmpty(name)) continue;
+                        GameProfile gp = null;
+                        foreach (var kv in gameProfiles)
+                            if (string.Equals(kv.Key.Name, name, StringComparison.OrdinalIgnoreCase)) { gp = kv.Value; break; }
+                        if (gp == null) { missing++; Logger.Warn($"GTLGo import: sin perfil para '{name}'"); continue; }
+                        if (e.TryGetProperty("tdp", out var v1)) gp.TDP = v1.GetInt32();
+                        if (e.TryGetProperty("tdpDc", out var v2)) gp.TDP_DC = v2.GetInt32();
+                        if (e.TryGetProperty("autoTdp", out var v3)) { gp.AutoTDPEnabled = v3.GetBoolean(); gp.AutoTDPEnabled_DC = v3.GetBoolean(); }
+                        if (e.TryGetProperty("targetFps", out var v4)) { gp.AutoTDPTargetFPS = v4.GetInt32(); gp.AutoTDPTargetFPS_DC = v4.GetInt32(); }
+                        if (e.TryGetProperty("minTdp", out var v5)) gp.AutoTDPMinTDP = v5.GetInt32();
+                        if (e.TryGetProperty("maxTdp", out var v6)) gp.AutoTDPMaxTDP = v6.GetInt32();
+                        gp.Save();
+                        applied++;
+                    }
+                }
+                string done = file + ".aplicado";
+                if (File.Exists(done)) File.Delete(done);
+                File.Move(file, done);
+                Logger.Info($"GTLGo import: {applied} perfiles actualizados, {missing} sin perfil");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"GTLGo import: error {ex.Message}");
+            }
         }
 
         static string SafeFileName(string name, string fallback)

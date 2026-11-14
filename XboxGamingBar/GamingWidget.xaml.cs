@@ -2320,6 +2320,9 @@ namespace XboxGamingBar
             // Load Performance Overlay setting
             LoadPerformanceOverlaySetting();
 
+            // GTLGo: ajustes masivos de perfiles (una sola vez)
+            ImportGtlgoWidgetPresets();
+
             // Load Force Default Game Profile setting
             LoadForceDefaultGameProfileSetting();
 
