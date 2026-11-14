@@ -20,6 +20,10 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
         {
             var now = DateTime.Now;
             var timeString = now.ToString(Use24Hour ? "HH:mm" : "h:mm tt"); // "14:30" or "2:30 PM"
+            if (LegionStyle)
+            {
+                return $"<C={ApplyOpacity("B0B8C4")}>{timeString}";
+            }
             return $"<C={GetTextColorWithOpacity()}>{timeString}";
         }
     }

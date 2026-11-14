@@ -22,9 +22,16 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
             var osdItems = base.GetValues(osdLevel);
 
             // Show VRAM used, total and clock with 1 decimal place for memory
+            if (LegionStyle)
+            {
+                float total = gpuMemoryUsedSensor.Value + gpuMemoryFreeSensor.Value;
+                if (total > 0)
+                    osdItems.Add(new OSDItemValue(gpuMemoryUsedSensor.Value * 100f / total, "% ", OSDValueType.Percentage));
+            }
             osdItems.Add(new OSDItemValue(gpuMemoryUsedSensor.Value / 1024f, "/", OSDValueType.None, 1)); // Convert MB to GB
             osdItems.Add(new OSDItemValue((gpuMemoryUsedSensor.Value + gpuMemoryFreeSensor.Value) / 1024f, "GB ", OSDValueType.None, 1));
-            osdItems.Add(new OSDItemValue(gpuMemoryClockSensor.Value, "MHz", OSDValueType.Speed));
+            if (!LegionStyle || osdLevel >= 3)
+                osdItems.Add(new OSDItemValue(gpuMemoryClockSensor.Value, "MHz", OSDValueType.Speed));
 
             return osdItems;
         }

@@ -12,6 +12,11 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
         {
             // FPS and frametime - uses text color, yellow for frametime then back to text color
             // Apply opacity to all colors for OLED protection
+            if (LegionStyle)
+            {
+                return BuildLegionFps();
+            }
+
             var tc = GetTextColorWithOpacity();
             var yellow = ApplyOpacity("FFFF00");
 
@@ -48,6 +53,31 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
                 }
             }
             return $"<C={tc}><FR> FPS <C={yellow}><FT> ms<C={tc}>";
+        }
+
+        // GTLGo: "FPS  60 fps  16.6 ms" con número grande alineado y frametime en ámbar suave
+        private string BuildLegionFps()
+        {
+            string value = "<FR>";
+            string fg = "";
+            var pm = Program.PresentMonMetrics;
+            if (pm != null && pm.IsLive(3000))
+            {
+                int rendered = pm.RenderedFps;
+                int displayed = pm.DisplayedFps;
+                if (pm.AfmfFps > 0 && displayed > rendered)
+                {
+                    value = $"{rendered}/{displayed}";
+                    fg = $" {Sz(62)}<C={ApplyOpacity("F5A15A")}>FG{SzReset()}";
+                }
+                else if (rendered > 0)
+                {
+                    value = rendered.ToString();
+                }
+            }
+            string white = ApplyOpacity("FFFFFF");
+            string amber = ApplyOpacity("F5D76E");
+            return $"{GetNameString()} <C={white}>{LegionNumber(value, 3)}{LegionUnit("fps")}{fg} <C={amber}><A=-4><FT><A>{LegionUnit("ms")}<C={GetTextColorWithOpacity()}>";
         }
     }
 }
