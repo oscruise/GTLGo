@@ -4070,6 +4070,13 @@ namespace XboxGamingBar
                 // Now safe to update currentGameName
                 currentGameName = newGameName;
 
+                // GTLGo: si el helper ya habia apagado el interruptor (sincronizacion al cerrar el juego),
+                // no hubo evento del interruptor y "Using profile" se quedaba con el nombre del juego.
+                if (!HasValidGame(currentGameName))
+                {
+                    UpdateActiveProfileIndicator();
+                }
+
                 // Check if we have a valid game
                 if (HasValidGame(currentGameName))
                 {
