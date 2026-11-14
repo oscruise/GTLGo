@@ -76,14 +76,14 @@ namespace XboxGamingBarHelper.RTSS
         /// </summary>
         private void ApplyLegionLevels()
         {
-            osdLevelConfig[1] = new HashSet<string> { "FPS", "Battery", "Temp" };
+            osdLevelConfig[1] = new HashSet<string> { "FPS", "TDPLimits", "Temp", "Battery" };
             osdLevelConfig[2] = new HashSet<string> { "FPS", "CPU", "GPU", "Memory", "VRAM", "TDPLimits", "Battery", "Time", "FrametimeGraph" };
             osdLevelConfig[3] = new HashSet<string> { "AppName", "FPS", "FrameBudget", "CPU", "CPUClock", "GPU", "GPUClock", "Memory", "VRAM", "TDPLimits", "AutoTDP", "Fan", "Battery", "ControllerBattery", "Time", "FrametimeGraph" };
             var order = new List<string> { "AppName", "FPS", "FrameBudget", "CPU", "CPUClock", "GPU", "GPUClock", "Memory", "VRAM", "TDPLimits", "AutoTDP", "Fan", "Battery", "ControllerBattery", "Time", "FrametimeGraph" };
-            osdLevelOrder[1] = new List<string> { "FPS", "Battery", "Temp" };
+            osdLevelOrder[1] = new List<string> { "FPS", "TDPLimits", "Temp", "Battery" };
             osdLevelOrder[2] = new List<string>(order);
             osdLevelOrder[3] = new List<string>(order);
-            osdLevelColumns[1] = 3;
+            osdLevelColumns[1] = 4;
             osdLevelColumns[2] = 1;
             osdLevelColumns[3] = 1;
             frametimeGraphPinned = true;

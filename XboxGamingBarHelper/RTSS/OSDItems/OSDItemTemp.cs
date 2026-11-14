@@ -25,8 +25,15 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
             float cpu = cpuTemperatureSensor?.Value ?? -1;
             float gpu = gpuTemperatureSensor?.Value ?? -1;
             float t = Math.Max(cpu, gpu);
-            osdItems.Add(new OSDItemValue(t > 0 ? t : -1, "C", OSDValueType.Temperature));
+            osdItems.Add(new OSDItemValue(t > 0 ? t : -1, "°", OSDValueType.Temperature));
             return osdItems;
+        }
+
+        // En la fila del nivel básico solo el número con "°" (sin etiqueta); en listas, con etiqueta TEMP.
+        protected override string GetNameString()
+        {
+            if (LegionStyle && LabelColumnCells == 0) return "";
+            return base.GetNameString();
         }
     }
 }

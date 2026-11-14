@@ -201,7 +201,8 @@ namespace XboxGamingBarHelper.RTSS
         private string BuildLegionString(List<OSDItemValue> osdValues)
         {
             var sb = new System.Text.StringBuilder();
-            sb.Append(GetNameString()).Append(' ');
+            string nameStr = GetNameString();
+            if (!string.IsNullOrEmpty(nameStr)) sb.Append(nameStr).Append(' ');
             for (int i = 0; i < osdValues.Count; i++)
             {
                 var v = osdValues[i];
