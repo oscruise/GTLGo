@@ -20,31 +20,26 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v2
 
-      # Los .cs de ADLXDepends versionados se generaron con SWIG 4.3.1; el proyecto
-      # ADLXCSharpBind los regenera y copia encima en cada build. Una versión distinta
-      # de SWIG cambia los nombres SWIGTYPE_* y rompe la compilación del helper.
-      - name: Instalar SWIG 4.3.1 (misma versión que los archivos versionados)
+      # ADLXCSharpBind.dll y los .cs de ADLXDepends vienen precompilados en el repo, generados
+      # de un ADLX local más nuevo que el submódulo. Recompilar el binding los sobrescribe con
+      # una versión incompleta, así que se quita de la compilación (solo en el runner).
+      - name: Usar el binding ADLX precompilado
         shell: pwsh
         run: |
-          choco install swig --version=4.3.1 -y --no-progress --allow-downgrade
-          $swigDir = Get-ChildItem "$env:ChocolateyInstall\lib\swig" -Recurse -Filter swig.exe | Select-Object -First 1 | ForEach-Object DirectoryName
-          if ($swigDir) { $swigDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
-          & "$swigDir\swig.exe" -version
+          (Get-Content XboxGamingBar.sln) | ? { $_ -notmatch 'B9106003-FDC7-4318-A4C7-31C40484CD4E\}\..*\.Build\.0' } | Set-Content XboxGamingBar.sln
+
+      # PresentMon.exe (Intel, MIT) no está versionado; lo usa el helper para FPS/frametimes.
+      - name: Agregar PresentMon (release oficial de GameTechDev)
+        shell: pwsh
+        run: |
+          $url = "https://github.com/GameTechDev/PresentMon/releases/download/v2.3.0/PresentMon-2.3.0-x64.exe"
+          try {
+            Invoke-WebRequest $url -OutFile XboxGamingBarHelper\PresentMon.exe
+            Write-Host "PresentMon SHA256: $((Get-FileHash XboxGamingBarHelper\PresentMon.exe).Hash)"
+          } catch { Write-Host "::warning::No se pudo descargar PresentMon: $_" }
 
       - name: Restaurar paquetes NuGet
         run: nuget restore XboxGamingBar.sln
-
-      # Primero el binding nativo de ADLX: genera ADLXCSharpBind.dll y regenera los .cs de
-      # ADLXDepends. Así el helper se evalúa después y su comodín ADLXDepends\*.cs los incluye.
-      - name: Compilar binding ADLX (SWIG)
-        shell: pwsh
-        run: |
-          msbuild XboxGamingBar.sln /t:ADLXCSharpBind /p:Configuration=Release /p:Platform=x64 `
-            /v:minimal /flp:"logfile=adlx.log;verbosity=normal" /flp1:"logfile=errores.log;errorsonly"
-          $code = $LASTEXITCODE
-          Get-Content errores.log -ErrorAction SilentlyContinue | Select-Object -First 10 | % { Write-Host "::error::$_" }
-          if ($code -ne 0) { Copy-Item adlx.log msbuild.log -Force; exit $code }
-          git status --short -- XboxGamingBarHelper/ADLXDepends | Measure-Object | % { Write-Host "ADLXDepends cambiados: $($_.Count)" }
 
       - name: Compilar paquete (Release x64, sin firma)
         shell: pwsh

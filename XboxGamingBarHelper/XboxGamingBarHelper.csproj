@@ -695,11 +695,6 @@
     <Compile Include="Labs\HidHideProperties.cs" />
     <Compile Include="Icons\GameIconHelper.cs" />
   </ItemGroup>
-  <!-- GTLGo: ADLXCSharpBind regenera ADLXDepends con SWIG en cada build; incluir los
-       archivos SWIGTYPE nuevos que no esten en la lista fija para que compile igual. -->
-  <ItemGroup>
-    <Compile Include="ADLXDepends\*.cs" Exclude="@(Compile)" />
-  </ItemGroup>
   <ItemGroup>
     <None Include="ADLXCSharpBind.exp">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -736,7 +731,7 @@
     <None Include="libviiper.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="PresentMon.exe">
+    <None Include="PresentMon.exe" Condition="Exists('PresentMon.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <!-- WinRing0 files removed - deprecated TDP method
@@ -764,7 +759,7 @@
     <None Include="ADLXCSharpBind.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="ADLXCSharpBind.pdb">
+    <None Include="ADLXCSharpBind.pdb" Condition="Exists('ADLXCSharpBind.pdb')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <!-- Native gyro fusion (Jibb Smart's GamepadMotionHelpers, MIT). Built from
