@@ -16,6 +16,57 @@ namespace XboxGamingBarHelper.RTSS
 
         public string Id => id;
 
+        // ===== GTLGo: estilo "Legion" (solo diseño; mismos datos y mismo RTSS) =====
+        internal static bool LegionStyle = true;
+        internal static int BaseSize = 100;        // tamaño base del overlay en % (TextSize del widget)
+        internal static int LabelColumnCells = 0;  // >0 en listas verticales: columna fija de etiquetas
+        internal const string LegionDim = "8A93A3";   // unidades y separadores
+        internal const string LegionValue = "EEF1F5"; // valores neutros
+
+        private static readonly Dictionary<string, string> LegionLabels = new Dictionary<string, string>
+        {
+            { "FPS", "5CD6FF" }, { "AppName", "5CD6FF" },
+            { "CPU", "7FB6FF" }, { "GPU", "FF9F5A" },
+            { "Memory", "C792EA" }, { "VRAM", "B39DDB" },
+            { "Battery", "8BE38B" }, { "ControllerBattery", "8BE38B" },
+            { "Fan", "9AA5B1" }, { "NET", "9AA5B1" }, { "Time", "B0B8C4" },
+            { "FrameBudget", "F2C14E" }, { "AutoTDP", "F2C14E" }, { "TDPLimits", "F2C14E" },
+        };
+
+        // Colores neón originales -> paleta suave del estilo Legion
+        private static readonly Dictionary<string, string> LegionSoft = new Dictionary<string, string>
+        {
+            { "00FF00", "7CE38B" }, { "80FF00", "B5E36E" }, { "FFFF00", "F5D76E" },
+            { "FF8000", "F5A15A" }, { "FF0000", "F2645A" }, { "0080FF", "6FA8FF" }, { "00FF80", "6EE3C0" },
+        };
+
+        protected static string Sz(int pct) => $"<S={Math.Max(30, BaseSize * pct / 100)}>";
+        protected static string SzReset() => BaseSize == 100 ? "<S>" : $"<S={BaseSize}>";
+
+        protected string LegionLabelColor()
+        {
+            // Si el usuario eligió un color de etiqueta en el widget, se respeta
+            if (colorCode != defaultColorCode) return colorCode;
+            return LegionLabels.TryGetValue(id ?? "", out var c) ? c : colorCode;
+        }
+
+        /// <summary>Unidad pequeña y tenue ("fps", "%", "W", "GB").</summary>
+        protected string LegionUnit(string unit)
+        {
+            if (string.IsNullOrWhiteSpace(unit)) return "";
+            string u = unit.Trim();
+            if (u == "C") u = "°C";
+            else if (u == "W/H") u = "W";
+            return $"{Sz(62)}<C={ApplyOpacity(LegionDim)}>{u}{SzReset()}";
+        }
+
+        /// <summary>Número en caja alineada a la derecha para que no "brinque" al cambiar de dígitos.</summary>
+        protected static string LegionNumber(string text, int minCells)
+        {
+            int w = Math.Max(minCells, text.Length);
+            return $"<A=-{w}>{text}<A>";
+        }
+
         public void SetLabelColor(string color)
         {
             if (!string.IsNullOrEmpty(color) && color != "DEFAULT")
@@ -110,6 +161,11 @@ namespace XboxGamingBarHelper.RTSS
                 return string.Empty;
             }
 
+            if (LegionStyle)
+            {
+                return BuildLegionString(osdValues);
+            }
+
             var tc = GetTextColorWithOpacity();
             var osdString = $"{GetNameString()} ";
 
@@ -142,8 +198,49 @@ namespace XboxGamingBarHelper.RTSS
             return osdString;
         }
 
+        private string BuildLegionString(List<OSDItemValue> osdValues)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append(GetNameString()).Append(' ');
+            for (int i = 0; i < osdValues.Count; i++)
+            {
+                var v = osdValues[i];
+                if (v.Value < 0)
+                {
+                    sb.Append($"<C={ApplyOpacity(LegionDim)}>--");
+                }
+                else
+                {
+                    int cells = 0;
+                    switch (v.ValueType)
+                    {
+                        case OSDValueType.Percentage:
+                        case OSDValueType.PercentageInv: cells = 3; break;
+                        case OSDValueType.Temperature:
+                        case OSDValueType.Wattage: cells = 2; break;
+                        case OSDValueType.Speed: cells = 4; break;
+                    }
+                    string text = v.Prefix + v.FormattedValue;
+                    sb.Append($"<C={GetValueColor(v)}>");
+                    sb.Append(cells > 0 ? LegionNumber(text, cells) : text);
+                    sb.Append(LegionUnit(v.Unit));
+                }
+                if (i < osdValues.Count - 1 && v.Unit != "/" && !(v.Unit ?? "").EndsWith("/"))
+                {
+                    sb.Append(' ');
+                }
+            }
+            sb.Append($"<C={GetTextColorWithOpacity()}>");
+            return sb.ToString();
+        }
+
         protected virtual string GetNameString()
         {
+            if (LegionStyle)
+            {
+                string label = $"{Sz(68)}<C={ApplyOpacity(LegionLabelColor())}>{(name ?? "").ToUpperInvariant()}{SzReset()}<C={GetTextColorWithOpacity()}>";
+                return LabelColumnCells > 0 ? $"<A={LabelColumnCells}>{label}<A>" : label;
+            }
             return $"<C={ApplyOpacity(colorCode)}>{name}<C={GetTextColorWithOpacity()}>";
         }
 
@@ -158,6 +255,22 @@ namespace XboxGamingBarHelper.RTSS
         /// </summary>
         protected string GetValueColor(OSDItemValue value)
         {
+            if (LegionStyle)
+            {
+                // Estilo Legion: los valores con umbral siempre llevan color (RAM en rojo arriba de 85 %)
+                string baseColor;
+                switch (value.ValueType)
+                {
+                    case OSDValueType.Temperature: baseColor = GetTemperatureColor(value.Value); break;
+                    case OSDValueType.Percentage: baseColor = GetPercentageColor(value.Value); break;
+                    case OSDValueType.PercentageInv: baseColor = GetPercentageInvColor(value.Value); break;
+                    case OSDValueType.Wattage: baseColor = GetWattageColor(value.Value); break;
+                    default: baseColor = LegionValue; break;
+                }
+                if (LegionSoft.TryGetValue(baseColor, out var soft)) baseColor = soft;
+                return ApplyOpacity(baseColor);
+            }
+
             if (!useDynamicColor || value.ValueType == OSDValueType.None)
             {
                 // When not using dynamic color, textColor already has opacity from RTSSManager

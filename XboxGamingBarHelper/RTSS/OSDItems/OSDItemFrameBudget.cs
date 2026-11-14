@@ -35,6 +35,12 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
 
             var tc = GetTextColorWithOpacity();
             var yellow = ApplyOpacity("FFFF00");
+            if (LegionStyle)
+            {
+                string hot = ApplyOpacity("F5D76E"), calm = ApplyOpacity(LegionValue);
+                return $"{GetNameString()} {Sz(62)}<C={ApplyOpacity(LegionDim)}>CPU{SzReset()} <C={(cpu >= gpu ? hot : calm)}>{LegionNumber(cpu.ToString(), 3)}{LegionUnit("%")} " +
+                       $"{Sz(62)}<C={ApplyOpacity(LegionDim)}>GPU{SzReset()} <C={(gpu > cpu ? hot : calm)}>{LegionNumber(gpu.ToString(), 3)}{LegionUnit("%")}<C={tc}>";
+            }
 
             // Whichever side is higher is the bottleneck — highlight in yellow.
             string cpuColor = cpu >= gpu ? yellow : tc;

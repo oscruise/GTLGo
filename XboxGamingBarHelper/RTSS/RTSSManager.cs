@@ -19,6 +19,67 @@ namespace XboxGamingBarHelper.RTSS
     internal class RTSSManager : OnScreenDisplayManager
     {
         private const string OSDSeparator = " <C=6E006A>|<C> ";
+        private string LegionSeparator => $"  <C={ApplyOpacityToColor("4A5260")}>|<C>  ";
+
+        // ===== GTLGo: estilo y niveles "Legion" =====
+        // gtlgo_osd_estilo.txt en LocalState: "legion" (por defecto) o "clasico".
+        // gtlgo_osd_niveles.txt: "legion" (por defecto, usa los niveles de abajo) o "widget" (usa los del widget).
+        private DateTime gtlgoStyleCheckedUtc = DateTime.MinValue;
+        private string lastOsdConfig;
+        private bool gtlgoLegionLevels = true;
+
+        private void RefreshGtlgoStyle()
+        {
+            if ((DateTime.UtcNow - gtlgoStyleCheckedUtc).TotalSeconds < 5) return;
+            gtlgoStyleCheckedUtc = DateTime.UtcNow;
+            try
+            {
+                string dir = XboxGamingBarHelper.Profile.ProfileManager.LocalFolderPath;
+                if (string.IsNullOrEmpty(dir)) return;
+                string estilo = ReadSmallFile(System.IO.Path.Combine(dir, "gtlgo_osd_estilo.txt"));
+                bool legion = estilo != "clasico";
+                string niveles = ReadSmallFile(System.IO.Path.Combine(dir, "gtlgo_osd_niveles.txt"));
+                bool legionLevels = legion && niveles != "widget";
+                if (legion != OSDItem.LegionStyle || legionLevels != gtlgoLegionLevels)
+                {
+                    Logger.Info($"GTLGo: estilo de overlay {(legion ? "legion" : "clasico")}, niveles {(legionLevels ? "legion" : "widget")}");
+                }
+                OSDItem.LegionStyle = legion;
+                bool wasLegionLevels = gtlgoLegionLevels;
+                gtlgoLegionLevels = legionLevels;
+                if (legionLevels && !wasLegionLevels) ApplyLegionLevels();
+                else if (!legionLevels && wasLegionLevels && lastOsdConfig != null) ParseOSDConfig(lastOsdConfig);
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug($"GTLGo: no se pudo leer el estilo del overlay: {ex.Message}");
+            }
+        }
+
+        private static string ReadSmallFile(string path)
+        {
+            return System.IO.File.Exists(path) ? System.IO.File.ReadAllText(path).Trim().ToLowerInvariant() : "";
+        }
+
+        /// <summary>
+        /// Niveles pensados para la Legion Go:
+        /// 1 Mínimo: una fila (FPS, batería, hora). 2 Juego: lista con RAM/VRAM/TDP y gráfica.
+        /// 3 Diagnóstico: todo.
+        /// </summary>
+        private void ApplyLegionLevels()
+        {
+            osdLevelConfig[1] = new HashSet<string> { "FPS", "Battery", "Time" };
+            osdLevelConfig[2] = new HashSet<string> { "FPS", "CPU", "GPU", "Memory", "VRAM", "TDPLimits", "Battery", "Time", "FrametimeGraph" };
+            osdLevelConfig[3] = new HashSet<string> { "AppName", "FPS", "FrameBudget", "CPU", "CPUClock", "GPU", "GPUClock", "Memory", "VRAM", "TDPLimits", "AutoTDP", "Fan", "Battery", "ControllerBattery", "Time", "FrametimeGraph" };
+            var order = new List<string> { "AppName", "FPS", "FrameBudget", "CPU", "CPUClock", "GPU", "GPUClock", "Memory", "VRAM", "TDPLimits", "AutoTDP", "Fan", "Battery", "ControllerBattery", "Time", "FrametimeGraph" };
+            osdLevelOrder[1] = new List<string> { "FPS", "Battery", "Time" };
+            osdLevelOrder[2] = new List<string>(order);
+            osdLevelOrder[3] = new List<string>(order);
+            osdLevelColumns[1] = 3;
+            osdLevelColumns[2] = 1;
+            osdLevelColumns[3] = 1;
+            frametimeGraphPinned = true;
+        }
         private const string OSDBackground = "<P=0,0><L0><C=80000000><B=0,0>\b<C>";
         private const string OSDAppName = "GoTweaks OSD";
 
@@ -174,6 +235,7 @@ namespace XboxGamingBarHelper.RTSS
             };
 
             rtssState = RivatunerStatisticsServerState.NotInstalled;
+            ApplyLegionLevels();
         }
 
         /// <summary>
@@ -189,6 +251,7 @@ namespace XboxGamingBarHelper.RTSS
             }
 
             Logger.Info($"Parsing OSD config: {configString}");
+            lastOsdConfig = configString;
 
             try
             {
@@ -323,6 +386,11 @@ namespace XboxGamingBarHelper.RTSS
                     }
                 }
 
+                if (OSDItem.LegionStyle && gtlgoLegionLevels)
+                {
+                    ApplyLegionLevels();
+                    Logger.Info("GTLGo: niveles Legion aplicados sobre la configuración del widget");
+                }
                 Logger.Info("OSD configuration updated successfully");
             }
             catch (Exception ex)
@@ -597,6 +665,13 @@ namespace XboxGamingBarHelper.RTSS
                 }
             }
 
+            RefreshGtlgoStyle();
+            OSDItem.BaseSize = osdTextSize;
+            {
+                int cols = osdLevelColumns.TryGetValue(onScreenDisplayLevel, out int c0) && c0 > 0 ? c0 : 3;
+                OSDItem.LabelColumnCells = (OSDItem.LegionStyle && cols == 1) ? 5 : 0;
+            }
+
             // Update clock display settings based on config
             osdItemCPU.SetShowClock(IsItemEnabled("CPUClock"));
             osdItemGPU.SetShowClock(IsItemEnabled("GPUClock"));
@@ -623,17 +698,18 @@ namespace XboxGamingBarHelper.RTSS
 
                     // Build graph using <G=<FT>> tag - processed by RTSSSharedMemoryNET.ProcessGraphTags
                     // Width/height are hardcoded in ProcessGraphTags (-32 chars, -2 lines)
-                    string graphColor = (osdTextColor == "DYNAMIC" || string.IsNullOrEmpty(osdTextColor)) ? "00FFFF" : osdTextColor;
+                    string graphColor = OSDItem.LegionStyle ? "5CD6FF" : ((osdTextColor == "DYNAMIC" || string.IsNullOrEmpty(osdTextColor)) ? "00FFFF" : osdTextColor);
                     graphColor = ApplyOpacityToColor(graphColor);
 
                     // Build stats label if we have valid data
                     string statsLabel = "";
                     if (currentMinFt > 0 && currentMaxFt > 0)
                     {
-                        string labelColor = ApplyOpacityToColor("808080");
-                        string minColor = ApplyOpacityToColor("00FF00");
-                        string avgColor = ApplyOpacityToColor("FFFF00");
-                        string maxColor = ApplyOpacityToColor("FF6600");
+                        bool lg = OSDItem.LegionStyle;
+                        string labelColor = ApplyOpacityToColor(lg ? "8A93A3" : "808080");
+                        string minColor = ApplyOpacityToColor(lg ? "7CE38B" : "00FF00");
+                        string avgColor = ApplyOpacityToColor(lg ? "F5D76E" : "FFFF00");
+                        string maxColor = ApplyOpacityToColor(lg ? "F5A15A" : "FF6600");
                         // Reset to osdTextSize after the small stats label (not just <S> which resets to 100%)
                         string sizeReset = osdTextSize != 100 ? $"<S={osdTextSize}>" : "<S>";
                         statsLabel = $"\n<S=50><C={labelColor}>min:<C={minColor}>{currentMinFt:F1}ms <C={labelColor}>avg:<C={avgColor}>{currentAvgFt:F1}ms <C={labelColor}>max:<C={maxColor}>{currentMaxFt:F1}ms<C>{sizeReset}";
@@ -734,7 +810,7 @@ namespace XboxGamingBarHelper.RTSS
                     }
                     else
                     {
-                        osdString += OSDSeparator;
+                        osdString += OSDItem.LegionStyle ? LegionSeparator : OSDSeparator;
                     }
                 }
                 osdString += enabledItems[i];

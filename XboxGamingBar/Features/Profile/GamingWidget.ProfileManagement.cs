@@ -44,6 +44,32 @@ namespace XboxGamingBar
     public sealed partial class GamingWidget
     {
 
+        // GTLGo: emuladores (RetroBat) arrancan con el overlay en nivel 2 "Juego" la primera vez.
+        private static readonly string[] GtlgoEmulatorExes =
+        {
+            "lichii", "fritchii", "eden", "citron", "yuzu", "suyu", "sudachi", "torzu", "ryujinx",
+            "dolphin", "cemu", "rpcs3", "pcsx2-qt", "pcsx2", "duckstation-qt-x64-releaseltcg", "duckstation",
+            "ppsspp", "ppssppwindows64", "xemu", "xenia", "xenia_canary", "vita3k", "retroarch", "azahar",
+            "citra-qt", "lime3ds", "melonds", "flycast", "redream", "shadps4", "mame", "mesen"
+        };
+
+        private void ApplyEmulatorOverlayDefault(PerformanceProfile profile)
+        {
+            try
+            {
+                string exe = System.IO.Path.GetFileNameWithoutExtension(runningGame?.Value.GameId.Path ?? "")?.ToLowerInvariant() ?? "";
+                if (profile != null && System.Array.IndexOf(GtlgoEmulatorExes, exe) >= 0 && profile.OverlayLevel < 2)
+                {
+                    profile.OverlayLevel = 2;
+                    Logger.Info($"GTLGo: nuevo perfil de emulador ({exe}) con overlay nivel 2");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: ApplyEmulatorOverlayDefault: {ex.Message}");
+            }
+        }
+
         private void LoadOrCreateGameProfiles()
         {
             if (!HasValidGame(currentGameName))
@@ -68,6 +94,7 @@ namespace XboxGamingBar
                 if (!hasAC)
                 {
                     gameACProfile = (seedProfile ?? acProfile).Clone();
+                    if (seedProfile == null) ApplyEmulatorOverlayDefault(gameACProfile);
                     SaveProfileToStorage($"Game_{currentGameName}_AC", gameACProfile);
                     Logger.Info($"Initialized game AC profile for {currentGameName} (seed={(seedProfile != null ? "single profile" : "global AC")})");
                 }
@@ -79,6 +106,7 @@ namespace XboxGamingBar
                 if (!hasDC)
                 {
                     gameDCProfile = (seedProfile ?? dcProfile).Clone();
+                    if (seedProfile == null) ApplyEmulatorOverlayDefault(gameDCProfile);
                     SaveProfileToStorage($"Game_{currentGameName}_DC", gameDCProfile);
                     Logger.Info($"Initialized game DC profile for {currentGameName} (seed={(seedProfile != null ? "single profile" : "global DC")})");
                 }
@@ -138,6 +166,7 @@ namespace XboxGamingBar
                     }
 
                     gameProfile = (seedProfile ?? globalProfile).Clone();
+                    if (seedProfile == null || !(hasAC || hasDC)) ApplyEmulatorOverlayDefault(gameProfile);
                     SaveProfileToStorage($"Game_{currentGameName}", gameProfile);
                     Logger.Info($"Initialized game profile for {currentGameName} (seed={(seedProfile != null ? "active profile" : "global profile")})");
                 }

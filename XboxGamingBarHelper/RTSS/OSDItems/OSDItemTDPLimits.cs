@@ -53,6 +53,8 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
                 if (mode != 255) // Not Custom mode
                 {
                     string modeName = LegionManager.GetPerformanceModeName(mode);
+                    if (LegionStyle)
+                        return $"{LegionTdpLabel()} <C={ApplyOpacity(LegionValue)}>{modeName}<C={tc}>";
                     return $"<C={labelColor}>Mode<C={tc}> <C={tc}>{modeName}<C={tc}>";
                 }
             }
@@ -68,7 +70,19 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
             }
 
             // Format: "Limits: SPL/SPPT/FPPT" e.g. "Limits: 25/26/28"
+            if (LegionStyle)
+            {
+                // Una sola cifra si los tres límites son iguales; si no, SPL/SPPT/FPPT
+                string v = (spl == sppt && sppt == fppt) ? spl.ToString() : $"{spl}/{sppt}/{fppt}";
+                return $"{LegionTdpLabel()} <C={ApplyOpacity(LegionValue)}>{LegionNumber(v, 2)}{LegionUnit("W")}<C={tc}>";
+            }
             return $"<C={labelColor}>Limits<C={tc}> <C={tc}>{spl}/{sppt}/{fppt}W<C={tc}>";
+        }
+
+        private string LegionTdpLabel()
+        {
+            string label = $"{Sz(68)}<C={ApplyOpacity(LegionLabelColor())}>TDP{SzReset()}";
+            return LabelColumnCells > 0 ? $"<A={LabelColumnCells}>{label}<A>" : label;
         }
     }
 }
