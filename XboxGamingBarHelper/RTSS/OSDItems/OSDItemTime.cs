@@ -22,7 +22,9 @@ namespace XboxGamingBarHelper.RTSS.OSDItems
             var timeString = now.ToString(Use24Hour ? "HH:mm" : "h:mm tt"); // "14:30" or "2:30 PM"
             if (LegionStyle)
             {
-                return $"<C={ApplyOpacity("B0B8C4")}>{timeString}";
+                string t = $"<C={ApplyOpacity("B0B8C4")}>{timeString}";
+                // En listas verticales, alinear con la columna de etiquetas
+                return LabelColumnCells > 0 ? $"{GetNameString()} {t}" : t;
             }
             return $"<C={GetTextColorWithOpacity()}>{timeString}";
         }

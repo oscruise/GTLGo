@@ -19,7 +19,15 @@ namespace XboxGamingBarHelper.RTSS
     internal class RTSSManager : OnScreenDisplayManager
     {
         private const string OSDSeparator = " <C=6E006A>|<C> ";
-        private string LegionSeparator => $"  <C={ApplyOpacityToColor("4A5260")}>|<C>  ";
+        private string LegionSeparator
+        {
+            get
+            {
+                int small = Math.Max(30, osdTextSize * 60 / 100);
+                string reset = osdTextSize == 100 ? "<S>" : $"<S={osdTextSize}>";
+                return $"  <S={small}><C={ApplyOpacityToColor("4A5260")}>|<C>{reset}  ";
+            }
+        }
 
         // ===== GTLGo: estilo y niveles "Legion" =====
         // gtlgo_osd_estilo.txt en LocalState: "legion" (por defecto) o "clasico".
@@ -68,11 +76,11 @@ namespace XboxGamingBarHelper.RTSS
         /// </summary>
         private void ApplyLegionLevels()
         {
-            osdLevelConfig[1] = new HashSet<string> { "FPS", "Battery", "Time" };
+            osdLevelConfig[1] = new HashSet<string> { "FPS", "Battery", "Temp" };
             osdLevelConfig[2] = new HashSet<string> { "FPS", "CPU", "GPU", "Memory", "VRAM", "TDPLimits", "Battery", "Time", "FrametimeGraph" };
             osdLevelConfig[3] = new HashSet<string> { "AppName", "FPS", "FrameBudget", "CPU", "CPUClock", "GPU", "GPUClock", "Memory", "VRAM", "TDPLimits", "AutoTDP", "Fan", "Battery", "ControllerBattery", "Time", "FrametimeGraph" };
             var order = new List<string> { "AppName", "FPS", "FrameBudget", "CPU", "CPUClock", "GPU", "GPUClock", "Memory", "VRAM", "TDPLimits", "AutoTDP", "Fan", "Battery", "ControllerBattery", "Time", "FrametimeGraph" };
-            osdLevelOrder[1] = new List<string> { "FPS", "Battery", "Time" };
+            osdLevelOrder[1] = new List<string> { "FPS", "Battery", "Temp" };
             osdLevelOrder[2] = new List<string>(order);
             osdLevelOrder[3] = new List<string>(order);
             osdLevelColumns[1] = 3;
@@ -232,6 +240,7 @@ namespace XboxGamingBarHelper.RTSS
                 osdItemFan,
                 osdItemAutoTDP,
                 osdItemTDPLimits,
+                new OSDItemTemp(performanceManager.CPUTemperature, performanceManager.GPUTemperature),
             };
 
             rtssState = RivatunerStatisticsServerState.NotInstalled;

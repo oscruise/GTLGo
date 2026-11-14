@@ -29,7 +29,7 @@ namespace XboxGamingBarHelper.RTSS
             { "CPU", "7FB6FF" }, { "GPU", "FF9F5A" },
             { "Memory", "C792EA" }, { "VRAM", "B39DDB" },
             { "Battery", "8BE38B" }, { "ControllerBattery", "8BE38B" },
-            { "Fan", "9AA5B1" }, { "NET", "9AA5B1" }, { "Time", "B0B8C4" },
+            { "Fan", "9AA5B1" }, { "Temp", "F5A15A" }, { "NET", "9AA5B1" }, { "Time", "B0B8C4" },
             { "FrameBudget", "F2C14E" }, { "AutoTDP", "F2C14E" }, { "TDPLimits", "F2C14E" },
         };
 
