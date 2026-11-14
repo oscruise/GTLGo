@@ -27,6 +27,9 @@ namespace XboxGamingBarHelper.Profile
         /// <summary>
         /// Gets the local folder path, falling back to a known path when running outside MSIX
         /// </summary>
+        internal static string LocalFolderPath => GetLocalFolderPath();
+        internal static ProfileManager Instance { get; private set; }
+
         private static string GetLocalFolderPath()
         {
             if (_localFolderPath != null)
@@ -80,6 +83,7 @@ namespace XboxGamingBarHelper.Profile
 
         public ProfileManager() : base()
         {
+            Instance = this;
             gameProfiles = new Dictionary<GameId, GameProfile>();
 
             Logger.Info("Initialize global profile.");
@@ -131,6 +135,22 @@ namespace XboxGamingBarHelper.Profile
                     var gameProfile = XmlHelper.FromXMLFile<GameProfile>(filePath);
                     gameProfile.Path = filePath;
                     gameProfile.Cache = gameProfiles;
+
+                    // GTLGo: migrar perfiles guardados con el titulo completo del emulador
+                    // ("Fritchii | v4.1 | Clang ... | Juego (64-bit) | AMD") al nombre limpio del juego.
+                    string cleanName = Shared.Utilities.StringHelper.GameNameFromTitle(gameProfile.GameId.Name);
+                    if (!string.IsNullOrEmpty(cleanName) && cleanName != gameProfile.GameId.Name)
+                    {
+                        Logger.Info($"GTLGo: perfil '{gameProfile.GameId.Name}' renombrado a '{cleanName}' ({System.IO.Path.GetFileName(filePath)}).");
+                        gameProfile.GameId = new GameId(cleanName, gameProfile.GameId.Path, gameProfile.GameId.IconPath);
+                        gameProfile.Save();
+                    }
+
+                    if (gameProfiles.ContainsKey(gameProfile.GameId))
+                    {
+                        Logger.Warn($"GTLGo: perfil duplicado para '{gameProfile.GameId.Name}' en {System.IO.Path.GetFileName(filePath)}; se conserva el primero.");
+                        continue;
+                    }
                     gameProfiles.Add(gameProfile.GameId, gameProfile);
                 }
                 catch (Exception ex)
@@ -143,6 +163,16 @@ namespace XboxGamingBarHelper.Profile
             perGameProfile = new PerGameProfileProperty(null, this);
             currentProfile = new GameProfileProperty(GlobalProfile, this);
             deleteGameProfile = new DeleteGameProfileProperty(this);
+        }
+
+        static string SafeFileName(string name, string fallback)
+        {
+            string s = string.IsNullOrWhiteSpace(name) ? fallback : name;
+            foreach (char c in Path.GetInvalidFileNameChars())
+                s = s.Replace(c, '_');
+            s = s.Trim().TrimEnd('.');
+            if (s.Length > 80) s = s.Substring(0, 80).Trim();
+            return string.IsNullOrEmpty(s) ? (fallback ?? "game") : s;
         }
 
         public static string GetGameProfilesFolder()
@@ -270,7 +300,10 @@ namespace XboxGamingBarHelper.Profile
                 return gameProfile;
             }
 
-            var newGameProfilePath = Path.Combine(GetGameProfilesFolder(), $"{Path.GetFileNameWithoutExtension(gameId.Path)}{XML_EXTENSION}");
+            // GTLGo: un archivo por juego (antes era por .exe y los juegos del mismo emulador se pisaban)
+            var newGameProfilePath = Path.Combine(GetGameProfilesFolder(), $"{SafeFileName(gameId.Name, Path.GetFileNameWithoutExtension(gameId.Path))}{XML_EXTENSION}");
+            for (int n = 2; File.Exists(newGameProfilePath); n++)
+                newGameProfilePath = Path.Combine(GetGameProfilesFolder(), $"{SafeFileName(gameId.Name, Path.GetFileNameWithoutExtension(gameId.Path))} ({n}){XML_EXTENSION}");
             var newGameProfile = new GameProfile(gameId.Name, gameId.Path, true, CurrentProfile.TDP, CurrentProfile.CPUBoost, CurrentProfile.CPUEPP, CurrentProfile.TDPBoostEnabled, newGameProfilePath, gameProfiles);
             newGameProfile.Save();
             Logger.Info($"Add new profile for {gameId.Name} at {newGameProfilePath}.");

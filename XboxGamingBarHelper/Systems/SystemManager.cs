@@ -61,6 +61,12 @@ namespace XboxGamingBarHelper.Systems
             // Windows shell and system processes - never games
             "explorer.exe",
             "applicationframehost.exe",
+            // GTLGo: menus de frontends de juegos - al volver a ellos se aplica el perfil general
+            "emulationstation.exe",
+            "retrobat.exe",
+            "playnite.fullscreenapp.exe",
+            "playnite.desktopapp.exe",
+            "steamwebhelper.exe",
             // Remote desktop tools
             "rustdesk.exe",
             "anydesk.exe",
@@ -119,6 +125,10 @@ namespace XboxGamingBarHelper.Systems
             "duckstation-qt-x64-releaseltcg.exe",
             "duckstation.exe",
             "eden.exe",
+            "lichii.exe",
+            "sudachi.exe",
+            "yuzu.exe",
+            "torzu.exe",
             "melonds.exe",
             "pcsx2-qtx64.exe",
             "pcsx2-qt.exe",
@@ -668,32 +678,15 @@ namespace XboxGamingBarHelper.Systems
             // When preferExe is false: use window title, fall back to exe name
             string GetGameName(string path, string windowTitle)
             {
-                // Window titles go through CleanGameName: some titles embed
-                // zero-width/format code points that vary per launch, so a
-                // name-keyed profile silently stops matching (e.g. ARC Raiders).
-                windowTitle = Shared.Utilities.StringHelper.CleanGameName(windowTitle);
-                if (preferExe)
-                {
-                    // Prefer executable name, fall back to window title if path is empty
-                    if (!string.IsNullOrEmpty(path))
-                    {
-                        var exeName = Path.GetFileNameWithoutExtension(path);
-                        if (!string.IsNullOrEmpty(exeName))
-                            return exeName;
-                    }
-                    // Fall back to window title
-                    if (!string.IsNullOrEmpty(windowTitle))
-                        return windowTitle;
-                    // Last resort: try exe name again
-                    return Path.GetFileNameWithoutExtension(path) ?? "";
-                }
-                else
-                {
-                    // Use window title, fall back to exe name
-                    if (!string.IsNullOrEmpty(windowTitle))
-                        return windowTitle;
-                    return Path.GetFileNameWithoutExtension(path) ?? "";
-                }
+                // GTLGo: los perfiles se reconocen por el NOMBRE del juego, no por el .exe.
+                // El titulo se reduce al juego (sin emulador, version, compilador ni GPU) para que
+                // el perfil siga funcionando despues de actualizar el emulador, y para que dos
+                // juegos del mismo emulador (lichii.exe) tengan perfiles distintos.
+                // Si el titulo no trae juego (emulador sin juego, ventana sin titulo) se usa el .exe.
+                string fromTitle = Shared.Utilities.StringHelper.GameNameFromTitle(windowTitle);
+                if (!string.IsNullOrEmpty(fromTitle))
+                    return fromTitle;
+                return Path.GetFileNameWithoutExtension(path ?? "") ?? "";
             }
 
             try

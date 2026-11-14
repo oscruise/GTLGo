@@ -16,6 +16,22 @@ namespace XboxGamingBarHelper.OnScreenDisplay
 
         private static int LoadSavedLevel(int defaultValue)
         {
+            // GTLGo: al arrancar Windows se usa el nivel del perfil general (el ultimo usado sin juego),
+            // no el ultimo nivel usado: antes, si se apagaba la Legion durante un juego con overlay
+            // detallado, el sistema arrancaba con el overlay detallado.
+            try
+            {
+                string f = System.IO.Path.Combine(XboxGamingBarHelper.Profile.ProfileManager.LocalFolderPath, GlobalLevelFile);
+                if (System.IO.File.Exists(f) && int.TryParse(System.IO.File.ReadAllText(f).Trim(), out int g) && g >= 0 && g <= 3)
+                {
+                    Logger.Info($"GTLGo: OSD level {g} from the global profile");
+                    return g;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: could not read global OSD level: {ex.Message}");
+            }
             try
             {
                 int savedLevel = Properties.Settings.Default.OSDLevel;
@@ -32,8 +48,38 @@ namespace XboxGamingBarHelper.OnScreenDisplay
             return defaultValue;
         }
 
+        const string GlobalLevelFile = "gtlgo_osd_global.txt";
+
+        /// <summary>GTLGo: nivel de overlay guardado para el perfil general, o null si no hay.</summary>
+        internal static int? ReadGlobalLevel()
+        {
+            try
+            {
+                string f = System.IO.Path.Combine(XboxGamingBarHelper.Profile.ProfileManager.LocalFolderPath, GlobalLevelFile);
+                if (System.IO.File.Exists(f) && int.TryParse(System.IO.File.ReadAllText(f).Trim(), out int g) && g >= 0 && g <= 3)
+                    return g;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: could not read global OSD level: {ex.Message}");
+            }
+            return null;
+        }
+
         private void SaveLevel(int level)
         {
+            try
+            {
+                var pm = XboxGamingBarHelper.Profile.ProfileManager.Instance;
+                if (pm != null && pm.CurrentProfile.IsGlobalProfile)
+                {
+                    System.IO.File.WriteAllText(System.IO.Path.Combine(XboxGamingBarHelper.Profile.ProfileManager.LocalFolderPath, GlobalLevelFile), level.ToString());
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: could not save global OSD level: {ex.Message}");
+            }
             try
             {
                 Properties.Settings.Default.OSDLevel = level;

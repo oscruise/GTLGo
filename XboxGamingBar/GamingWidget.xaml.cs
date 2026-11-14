@@ -4078,11 +4078,21 @@ namespace XboxGamingBar
                     string disabledKey = $"PerGameProfileDisabled_{currentGameName}";
                     bool userDisabledProfile = settings.Values.ContainsKey(disabledKey) && (bool)settings.Values[disabledKey];
 
-                    // Auto-enable per-game toggle ONLY if profile already exists for this game
-                    // Do NOT carry over toggle state from previous game - that causes unwanted profile creation
-                    // Respect user's preference if they explicitly disabled it
-                    if (hasExistingProfile && !userDisabledProfile)
+                    // GTLGo: si el juego aun no tiene perfil en el widget, buscar uno guardado con el nombre
+                    // anterior (titulo completo del emulador o nombre del .exe) y copiarlo al nombre nuevo.
+                    if (!hasExistingProfile && MigrateLegacyGameProfile(currentGameName))
                     {
+                        hasExistingProfile = HasAnyGameProfile(currentGameName);
+                    }
+
+                    // GTLGo: el perfil se crea y activa solo al detectar el juego (copia del perfil general).
+                    // Solo se respeta la decision explicita del usuario de apagarlo para ese juego.
+                    if (!userDisabledProfile)
+                    {
+                        if (!hasExistingProfile)
+                        {
+                            Logger.Info($"GTLGo: creando y activando perfil para {currentGameName} (juego nuevo)");
+                        }
                         if (!PerGameProfileToggle.IsOn)
                         {
                             Logger.Info($"Auto-enabling per-game profile for {currentGameName} (profile exists)");
@@ -4109,8 +4119,9 @@ namespace XboxGamingBar
                     }
                     else if (PerGameProfileToggle?.IsOn == true)
                     {
-                        // New game doesn't have a profile - turn off toggle to prevent auto-creation
-                        Logger.Info($"Disabling per-game toggle for {currentGameName} (no existing profile)");
+                        // GTLGo: el usuario apago el perfil de este juego (antes, si el juego anterior tenia el
+                        // interruptor encendido, se quedaba aplicado su perfil). Volver al perfil general.
+                        Logger.Info($"Disabling per-game toggle for {currentGameName} (user disabled its profile)");
                         isInternalToggleDisable = true;
                         PerGameProfileToggle.IsOn = false;
                         isInternalToggleDisable = false;

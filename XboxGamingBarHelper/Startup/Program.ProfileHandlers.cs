@@ -464,6 +464,22 @@ namespace XboxGamingBarHelper
 
             profileManager.CurrentProfile.SetValue(profileManager.GlobalProfile);
 
+            // GTLGo: el helper regresa el overlay al nivel del perfil general aunque el widget
+            // este en segundo plano (antes solo el widget lo enviaba y se quedaba "pegado").
+            try
+            {
+                int? globalOsd = OnScreenDisplayProperty.ReadGlobalLevel();
+                if (globalOsd.HasValue && onScreenDisplay != null && onScreenDisplay.Value != globalOsd.Value)
+                {
+                    Logger.Info($"GTLGo: restoring global OSD level {globalOsd.Value} (was {onScreenDisplay.Value})");
+                    onScreenDisplay.SetValue(globalOsd.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: could not restore global OSD level: {ex.Message}");
+            }
+
             Logger.Info($"Applying global profile settings: TDP={profileManager.GlobalProfile.TDP}, CPUBoost={profileManager.GlobalProfile.CPUBoost}, EPP={profileManager.GlobalProfile.CPUEPP}");
 
             // IMPORTANT: Disable AutoTDP FIRST, before setting TDP.
@@ -856,6 +872,7 @@ namespace XboxGamingBarHelper
 
         private static void RunningGame_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
+            GameId? autoCreateGame = null;
             // #66: drive PresentMon subprocess lifecycle from the same RunningGame signal.
             // Wrap in try/catch in the caller so PresentMon faults never break profile flow.
             OnRunningGameChangedForPresentMon();
@@ -929,6 +946,9 @@ namespace XboxGamingBarHelper
                     else
                     {
                         Logger.Info($"Game {systemManager.RunningGame.GameId} doesn't have per-game profile.");
+                        // GTLGo: crear y activar el perfil automaticamente (copia del perfil general),
+                        // aunque el widget este cerrado o en segundo plano.
+                        autoCreateGame = systemManager.RunningGame.Value.GameId;
                     }
 
                     // Only restore global if the current game doesn't have an active profile
@@ -966,6 +986,25 @@ namespace XboxGamingBarHelper
             {
                 profileSwitchTime = DateTime.UtcNow;
                 isApplyingProfile = false;
+            }
+
+            if (autoCreateGame.HasValue)
+            {
+                try
+                {
+                    // Re-validar: el juego sigue corriendo y nadie creo el perfil mientras tanto
+                    if (systemManager.RunningGame.Value.IsValid()
+                        && systemManager.RunningGame.Value.GameId.Equals(autoCreateGame.Value)
+                        && !profileManager.TryGetProfile(autoCreateGame.Value, out _))
+                    {
+                        Logger.Info($"GTLGo: auto-creating and enabling per-game profile for {autoCreateGame.Value.Name}");
+                        profileManager.PerGameProfile.ForceSetValue(true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"GTLGo: auto-create profile failed: {ex.Message}");
+                }
             }
         }
 
