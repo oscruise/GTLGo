@@ -34,6 +34,18 @@ jobs:
       - name: Restaurar paquetes NuGet
         run: nuget restore XboxGamingBar.sln
 
+      # Primero el binding nativo de ADLX: genera ADLXCSharpBind.dll y regenera los .cs de
+      # ADLXDepends. Así el helper se evalúa después y su comodín ADLXDepends\*.cs los incluye.
+      - name: Compilar binding ADLX (SWIG)
+        shell: pwsh
+        run: |
+          msbuild XboxGamingBar.sln /t:ADLXCSharpBind /p:Configuration=Release /p:Platform=x64 `
+            /v:minimal /flp:"logfile=adlx.log;verbosity=normal" /flp1:"logfile=errores.log;errorsonly"
+          $code = $LASTEXITCODE
+          Get-Content errores.log -ErrorAction SilentlyContinue | Select-Object -First 10 | % { Write-Host "::error::$_" }
+          if ($code -ne 0) { Copy-Item adlx.log msbuild.log -Force; exit $code }
+          git status --short -- XboxGamingBarHelper/ADLXDepends | Measure-Object | % { Write-Host "ADLXDepends cambiados: $($_.Count)" }
+
       - name: Compilar paquete (Release x64, sin firma)
         shell: pwsh
         run: |

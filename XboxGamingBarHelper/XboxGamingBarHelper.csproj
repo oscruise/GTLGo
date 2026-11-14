@@ -695,6 +695,11 @@
     <Compile Include="Labs\HidHideProperties.cs" />
     <Compile Include="Icons\GameIconHelper.cs" />
   </ItemGroup>
+  <!-- GTLGo: ADLXCSharpBind regenera ADLXDepends con SWIG en cada build; incluir los
+       archivos SWIGTYPE nuevos que no esten en la lista fija para que compile igual. -->
+  <ItemGroup>
+    <Compile Include="ADLXDepends\*.cs" Exclude="@(Compile)" />
+  </ItemGroup>
   <ItemGroup>
     <None Include="ADLXCSharpBind.exp">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
