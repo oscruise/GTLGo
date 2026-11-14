@@ -44,6 +44,71 @@ namespace XboxGamingBar
     public sealed partial class GamingWidget
     {
 
+        /// <summary>
+        /// GTLGo: los perfiles ahora se guardan con el nombre limpio del juego ("The Legend of Zelda: Ocarina of Time").
+        /// Antes se guardaban con el titulo completo del emulador o con el nombre del .exe ("lichii").
+        /// Si existe uno con el nombre anterior, se copian sus valores (rendimiento, controles y AC/DC)
+        /// al nombre nuevo para no perder la configuracion. El perfil viejo no se borra.
+        /// </summary>
+        private bool MigrateLegacyGameProfile(string newGameName)
+        {
+            try
+            {
+                if (!HasValidGame(newGameName))
+                    return false;
+
+                var settings = ApplicationData.Current.LocalSettings;
+                string exeName = "";
+                try { exeName = System.IO.Path.GetFileNameWithoutExtension(runningGame?.Value.GameId.Path ?? "") ?? ""; } catch { }
+
+                string legacy = null;
+                // 1) Mismo juego guardado con el titulo completo del emulador
+                foreach (var key in settings.Containers.Keys)
+                {
+                    if (!key.StartsWith("Profile_Game_")) continue;
+                    string name = key.Substring("Profile_Game_".Length);
+                    if (name.EndsWith("_AC") || name.EndsWith("_DC")) name = name.Substring(0, name.Length - 3);
+                    if (name == newGameName) continue;
+                    if (StringHelper.GameNameFromTitle(name) == newGameName) { legacy = name; break; }
+                }
+                // 2) Perfil por .exe (cuando estaba activo "Match by exe")
+                if (legacy == null && !string.IsNullOrEmpty(exeName) && exeName != newGameName &&
+                    (settings.Containers.ContainsKey($"Profile_Game_{exeName}") || settings.Containers.ContainsKey($"Profile_Game_{exeName}_AC") || settings.Containers.ContainsKey($"Profile_Game_{exeName}_DC")))
+                {
+                    legacy = exeName;
+                }
+                if (legacy == null)
+                    return false;
+
+                int copied = 0;
+                foreach (var prefix in new[] { "Profile_Game_", "ControllerProfile_Game_" })
+                {
+                    foreach (var suffix in new[] { "", "_AC", "_DC" })
+                    {
+                        string from = $"{prefix}{legacy}{suffix}";
+                        string to = $"{prefix}{newGameName}{suffix}";
+                        if (!settings.Containers.ContainsKey(from) || settings.Containers.ContainsKey(to)) continue;
+                        var src = settings.Containers[from];
+                        var dst = settings.CreateContainer(to, ApplicationDataCreateDisposition.Always);
+                        foreach (var kv in src.Values) dst.Values[kv.Key] = kv.Value;
+                        copied++;
+                    }
+                }
+                string psKeyOld = GetPerGamePowerSourceProfileSettingKey(legacy);
+                string psKeyNew = GetPerGamePowerSourceProfileSettingKey(newGameName);
+                if (settings.Values.ContainsKey(psKeyOld) && !settings.Values.ContainsKey(psKeyNew))
+                    settings.Values[psKeyNew] = settings.Values[psKeyOld];
+
+                Logger.Info($"GTLGo: perfil '{legacy}' copiado a '{newGameName}' ({copied} contenedores)");
+                return copied > 0;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"GTLGo: no se pudo migrar el perfil de {newGameName}: {ex.Message}");
+                return false;
+            }
+        }
+
         private void SaveProfileToStorage(string profileName, PerformanceProfile profile)
         {
             // Never save to "No game detected" profile (case-insensitive check)
