@@ -30,8 +30,10 @@ jobs:
             /p:AppxBundle=Always /p:AppxBundlePlatforms=x64 /p:UapAppxPackageBuildMode=SideloadOnly `
             /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true `
             /p:AppxPackageDir="$env:GITHUB_WORKSPACE\out\\" /p:AppxSymbolPackageEnabled=false `
-            /v:minimal /clp:Summary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            /v:minimal /clp:Summary /flp:"logfile=msbuild.log;verbosity=normal" /flp1:"logfile=errores.log;errorsonly"
+          $code = $LASTEXITCODE
+          Get-Content errores.log -ErrorAction SilentlyContinue | Select-Object -First 10 | % { Write-Host "::error::$_" }
+          if ($code -ne 0) { exit $code }
 
       - name: Agregar signtool (Windows SDK BuildTools, NuGet oficial de Microsoft)
         shell: pwsh
@@ -55,3 +57,15 @@ jobs:
         run: |
           $tag = "legion-$env:VER-$($env:GITHUB_SHA.Substring(0,7))"
           gh release create $tag "GTLGo_$env:VER.zip" --prerelease --target $env:GITHUB_SHA --title "GTLGo $env:VER ($($env:GITHUB_REF_NAME))" --notes "Compilación automática de $env:GITHUB_SHA. Sin firmar: se firma en la Legion."
+
+      - name: Publicar errores (si falla)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = "fallo-$($env:GITHUB_SHA.Substring(0,7))-$env:GITHUB_RUN_ATTEMPT"
+          $txt = "## Errores`n" + ((Get-Content errores.log -ErrorAction SilentlyContinue | Select-Object -First 60) -join "`n") + "`n`n## Final del log`n" + ((Get-Content msbuild.log -ErrorAction SilentlyContinue | Select-Object -Last 120) -join "`n")
+          if ($txt.Length -gt 120000) { $txt = $txt.Substring(0,120000) }
+          $txt | Out-File notas.md -Encoding utf8
+          gh release create $tag --prerelease --target $env:GITHUB_SHA --title "Fallo de compilacion $tag" --notes-file notas.md
