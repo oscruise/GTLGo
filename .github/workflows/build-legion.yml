@@ -38,6 +38,17 @@ jobs:
             Write-Host "PresentMon SHA256: $((Get-FileHash XboxGamingBarHelper\PresentMon.exe).Hash)"
           } catch { Write-Host "::warning::No se pudo descargar PresentMon: $_" }
 
+      # Cada compilación lleva una versión mayor que la anterior para que Windows la acepte
+      # como actualización (si no, todas salen 0.3.2783.0 y Add-AppxPackage la rechaza).
+      - name: Versión única por compilación
+        shell: pwsh
+        run: |
+          $m = 'XboxGamingBarPackage\Package.appxmanifest'
+          $ver = "0.3.$(3000 + [int]$env:GITHUB_RUN_NUMBER).0"
+          (Get-Content $m -Raw) -replace '(<Identity[^>]*Version=")[0-9.]+(")', "`${1}$ver`${2}" | Set-Content $m -NoNewline
+          Write-Host "Versión del paquete: $ver"
+          "GTLGO_VER=$ver" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Restaurar paquetes NuGet
         run: nuget restore XboxGamingBar.sln
 
@@ -62,7 +73,7 @@ jobs:
           Copy-Item (Join-Path $st.DirectoryName '*') dist\signtool -Recurse
           $bundle = Get-ChildItem out -Recurse -Filter *.msixbundle | Select-Object -First 1
           Copy-Item $bundle.FullName dist\
-          $ver = ([xml](Get-Content XboxGamingBarPackage\Package.appxmanifest)).Package.Identity.Version
+          $ver = $env:GTLGO_VER
           "$ver" | Out-File dist\version.txt -Encoding ascii
           "$env:GITHUB_SHA" | Out-File dist\commit.txt -Encoding ascii
           Compress-Archive dist\* "GTLGo_$ver.zip"
