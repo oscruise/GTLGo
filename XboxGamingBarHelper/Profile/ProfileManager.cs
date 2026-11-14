@@ -139,19 +139,29 @@ namespace XboxGamingBarHelper.Profile
                     // GTLGo: migrar perfiles guardados con el titulo completo del emulador
                     // ("Fritchii | v4.1 | Clang ... | Juego (64-bit) | AMD") al nombre limpio del juego.
                     string cleanName = Shared.Utilities.StringHelper.GameNameFromTitle(gameProfile.GameId.Name);
-                    if (!string.IsNullOrEmpty(cleanName) && cleanName != gameProfile.GameId.Name)
+                    if (string.IsNullOrEmpty(cleanName) && !string.IsNullOrEmpty(gameProfile.GameId.Name))
                     {
-                        Logger.Info($"GTLGo: perfil '{gameProfile.GameId.Name}' renombrado a '{cleanName}' ({System.IO.Path.GetFileName(filePath)}).");
+                        // El titulo no trae el juego (p.ej. Lichii mostraba "update 3.0.0"): usar el nombre del archivo
+                        cleanName = Shared.Utilities.StringHelper.GameNameFromFileName(System.IO.Path.GetFileNameWithoutExtension(filePath));
+                    }
+                    bool renamed = !string.IsNullOrEmpty(cleanName) && cleanName != gameProfile.GameId.Name;
+                    if (renamed)
+                    {
                         gameProfile.GameId = new GameId(cleanName, gameProfile.GameId.Path, gameProfile.GameId.IconPath);
-                        gameProfile.Save();
                     }
 
+                    // Revisar duplicados ANTES de guardar: Save() actualiza el diccionario y pisaria al primero.
                     if (gameProfiles.ContainsKey(gameProfile.GameId))
                     {
-                        Logger.Warn($"GTLGo: perfil duplicado para '{gameProfile.GameId.Name}' en {System.IO.Path.GetFileName(filePath)}; se conserva el primero.");
+                        Logger.Warn($"GTLGo: perfil duplicado para '{gameProfile.GameId.Name}' en {System.IO.Path.GetFileName(filePath)}; se conserva el primero y este archivo no se usa.");
                         continue;
                     }
                     gameProfiles.Add(gameProfile.GameId, gameProfile);
+                    if (renamed)
+                    {
+                        Logger.Info($"GTLGo: perfil renombrado a '{cleanName}' ({System.IO.Path.GetFileName(filePath)}).");
+                        gameProfile.Save();
+                    }
                 }
                 catch (Exception ex)
                 {

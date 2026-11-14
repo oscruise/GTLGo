@@ -49,6 +49,7 @@ namespace XboxGamingBarHelper.OnScreenDisplay
         }
 
         const string GlobalLevelFile = "gtlgo_osd_global.txt";
+        static readonly DateTime HelperStartUtc = DateTime.UtcNow;
 
         /// <summary>GTLGo: nivel de overlay guardado para el perfil general, o null si no hay.</summary>
         internal static int? ReadGlobalLevel()
@@ -71,7 +72,9 @@ namespace XboxGamingBarHelper.OnScreenDisplay
             try
             {
                 var pm = XboxGamingBarHelper.Profile.ProfileManager.Instance;
-                if (pm != null && pm.CurrentProfile.IsGlobalProfile)
+                // Los primeros segundos tras arrancar el helper el widget sincroniza valores por defecto
+                // (nivel 0) antes de cargar su perfil; no tomarlos como el nivel del perfil general.
+                if (pm != null && pm.CurrentProfile.IsGlobalProfile && (DateTime.UtcNow - HelperStartUtc).TotalSeconds > 45)
                 {
                     System.IO.File.WriteAllText(System.IO.Path.Combine(XboxGamingBarHelper.Profile.ProfileManager.LocalFolderPath, GlobalLevelFile), level.ToString());
                 }

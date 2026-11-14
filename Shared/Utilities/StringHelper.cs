@@ -45,13 +45,13 @@ namespace Shared.Utilities
 
         static readonly string[] EmulatorBrands =
         {
-            "lichii", "fritchii", "eden", "citron", "yuzu", "suyu", "sudachi", "torzu", "ryujinx",
+            "lichii", "fritchii", "frizti", "eden", "citron", "yuzu", "suyu", "sudachi", "torzu", "ryujinx",
             "dolphin", "cemu", "rpcs3", "pcsx2", "duckstation", "ppsspp", "xemu", "xenia", "vita3k",
             "shadps4", "azahar", "citra", "lime3ds", "melonds", "retroarch",
         };
 
         static readonly System.Text.RegularExpressions.Regex NoiseSegment = new System.Text.RegularExpressions.Regex(
-            @"^(v?\d+(\.\d+)+[a-z0-9\-\.]*|v\d+[\w\.\-]*|(msvc|clang|gnu|gcc|llvm)\b.*|(amd|nvidia|intel|qualcomm)\b.*|vulkan|opengl|d3d1[12]|directx\s*1[12]|\(?\d{2}-bit\)?|x64|x86|arm64|release|debug|(\d+(\.\d+)?\s*(fps|ms|%))|\[?[0-9a-f]{16}\]?)$",
+            @"^(update\s+v?\d+(\.\d+)*.*|build[\s\-]?\d+.*|fps:?\s*[\d\.]+.*|v?\d+(\.\d+)+[a-z0-9\-\.]*|v\d+[\w\.\-]*|(msvc|clang|gnu|gcc|llvm)\b.*|(amd|nvidia|intel|qualcomm)\b.*|vulkan|opengl|d3d1[12]|directx\s*1[12]|\(?\d{2}-bit\)?|x64|x86|arm64|release|debug|(\d+(\.\d+)?\s*(fps|ms|%))|\[?[0-9a-f]{16}\]?)$",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
         /// <summary>
@@ -62,6 +62,22 @@ namespace Shared.Utilities
         /// "The Legend of Zelda: Ocarina of Time". Los titulos sin separadores (juegos de PC) solo se limpian.
         /// Devuelve "" si el titulo no tiene juego (emulador sin juego abierto).
         /// </summary>
+        /// <summary>
+        /// GTLGo: nombre de juego a partir del nombre de archivo de un perfil antiguo
+        /// ("Lichii Donkey Kong Bananza" -> "Donkey Kong Bananza").
+        /// </summary>
+        public static string GameNameFromFileName(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName)) return "";
+            string s = fileName.Trim();
+            int sp = s.IndexOf(' ');
+            if (sp > 0 && System.Array.IndexOf(EmulatorBrands, s.Substring(0, sp).ToLowerInvariant()) >= 0)
+                s = s.Substring(sp + 1).Trim();
+            else if (System.Array.IndexOf(EmulatorBrands, s.ToLowerInvariant()) >= 0)
+                return "";
+            return s;
+        }
+
         public static string GameNameFromTitle(string title)
         {
             title = CleanGameName(title);
