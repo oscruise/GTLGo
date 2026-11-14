@@ -195,10 +195,11 @@ namespace XboxGamingBarHelper.Profile
                     {
                         string name = e.TryGetProperty("name", out var nm) ? nm.GetString() : null;
                         if (string.IsNullOrEmpty(name)) continue;
-                        GameProfile gp = null;
+                        GameId? key = null;
                         foreach (var kv in gameProfiles)
-                            if (string.Equals(kv.Key.Name, name, StringComparison.OrdinalIgnoreCase)) { gp = kv.Value; break; }
-                        if (gp == null) { missing++; Logger.Warn($"GTLGo import: sin perfil para '{name}'"); continue; }
+                            if (string.Equals(kv.Key.Name, name, StringComparison.OrdinalIgnoreCase)) { key = kv.Key; break; }
+                        if (!key.HasValue) { missing++; Logger.Warn($"GTLGo import: sin perfil para '{name}'"); continue; }
+                        GameProfile gp = gameProfiles[key.Value];
                         if (e.TryGetProperty("tdp", out var v1)) gp.TDP = v1.GetInt32();
                         if (e.TryGetProperty("tdpDc", out var v2)) gp.TDP_DC = v2.GetInt32();
                         if (e.TryGetProperty("autoTdp", out var v3)) { gp.AutoTDPEnabled = v3.GetBoolean(); gp.AutoTDPEnabled_DC = v3.GetBoolean(); }
@@ -206,6 +207,7 @@ namespace XboxGamingBarHelper.Profile
                         if (e.TryGetProperty("minTdp", out var v5)) gp.AutoTDPMinTDP = v5.GetInt32();
                         if (e.TryGetProperty("maxTdp", out var v6)) gp.AutoTDPMaxTDP = v6.GetInt32();
                         gp.Save();
+                        gameProfiles[key.Value] = gp; // GameProfile es struct: guardar la copia modificada
                         applied++;
                     }
                 }
