@@ -90,6 +90,7 @@ namespace XboxGamingBarHelper.RTSS
         }
         private const string OSDBackground = "<P=0,0><L0><C=80000000><B=0,0>\b<C>";
         private const string OSDAppName = "GoTweaks OSD";
+        private bool gtlgoOrphanOsdCleared;
 
         private OSD rtssOSD;
         private readonly OSDItem[] osdItems;
@@ -619,6 +620,26 @@ namespace XboxGamingBarHelper.RTSS
                         Logger.Debug($"Error clearing OSD: {ex.Message}");
                     }
                     rtssOSD = null;
+                }
+                else if (!gtlgoOrphanOsdCleared && isRTSSRunning)
+                {
+                    // GTLGo: if a previous helper was killed (crash, forced restart, update) its
+                    // "GoTweaks OSD" slot stays in RTSS shared memory and RTSS keeps drawing the
+                    // last text, even in RetroBat with the overlay off. Claim that slot once
+                    // (the OSD ctor reuses the slot with our owner name), blank it and release it.
+                    try
+                    {
+                        using (var orphan = new OSD(OSDAppName))
+                        {
+                            orphan.Update(string.Empty);
+                        }
+                        gtlgoOrphanOsdCleared = true;
+                        Logger.Info("GTLGo: cleared any leftover GoTweaks OSD slot (overlay off)");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Debug($"GTLGo: leftover OSD clear failed (will retry): {ex.Message}");
+                    }
                 }
 
                 return;
