@@ -119,6 +119,52 @@ namespace XboxGamingBarHelper
             catch (Exception ex)
             {
                 Logger.Error($"ApplyPowerSourceProfileValues: {ex.Message}");
+                return;
+            }
+            ReconcileTdpWithPowerSource();
+        }
+
+        /// <summary>
+        /// GTLGo: the per-state TDP was applied only on AC/DC transitions, so a game started on
+        /// AC got its profile's single saved TDP (the DC value, 20 W) instead of its AC value
+        /// (25 W; Legion, 2026-11-15 09:25). Each time the widget sends the active profile's
+        /// AC/DC values, apply the one for the current power state if it differs.
+        /// </summary>
+        private static void ReconcileTdpWithPowerSource()
+        {
+            try
+            {
+                if (performanceManager == null || performanceManager.IsAutoTDPActive)
+                {
+                    return;
+                }
+                if (defaultGameProfileManager != null && defaultGameProfileManager.ProfileEnabled.Value)
+                {
+                    return;
+                }
+                if (legionManager == null || legionManager.CurrentPerformanceMode != 255)
+                {
+                    return;
+                }
+                bool isOnAC = global::Windows.System.Power.PowerManager.PowerSupplyStatus
+                              != global::Windows.System.Power.PowerSupplyStatus.NotPresent;
+                bool? perStateAutoTdp = isOnAC ? PowerSourceProfileState.AcAutoTdp : PowerSourceProfileState.DcAutoTdp;
+                if (perStateAutoTdp == true)
+                {
+                    return;
+                }
+                int? wanted = isOnAC ? PowerSourceProfileState.AcTdp : PowerSourceProfileState.DcTdp;
+                if (!wanted.HasValue || wanted.Value <= 0 || wanted.Value == performanceManager.TDP.Value)
+                {
+                    return;
+                }
+                Logger.Info($"GTLGo: TDP {performanceManager.TDP.Value}W -> {wanted.Value}W for the current power state ({(isOnAC ? "AC" : "DC")})");
+                performanceManager.TDP.SetValue(wanted.Value);
+                performanceManager.SetTDP(wanted.Value);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"GTLGo: ReconcileTdpWithPowerSource: {ex.Message}");
             }
         }
 
