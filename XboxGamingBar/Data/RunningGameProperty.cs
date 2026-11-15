@@ -46,8 +46,11 @@ namespace XboxGamingBar.Data
                 {
                     if (!runningGame.IsValid())
                     {
-                        Logger.Info($"Rejecting empty RunningGame update during batch sync - preserving current: {Value.GameId.Name}");
-                        return false;
+                        // GTLGo: el helper es la fuente de verdad. Si el juego se cerro mientras el widget
+                        // estaba en segundo plano, el aviso de cierre se pierde y solo llega esto en la
+                        // sincronizacion; antes se rechazaba y el widget se quedaba con el perfil del juego.
+                        Logger.Info($"GTLGo: aceptando cierre de juego en la sincronizacion (era: {Value.GameId.Name})");
+                        return base.SetValue(new RunningGame(), updatedTime);
                     }
                 }
                 // Also check string values (from BatchGet) - "{}" or empty XML means no valid game
@@ -58,8 +61,8 @@ namespace XboxGamingBar.Data
                         xmlString == "{}" ||
                         xmlString == "null")
                     {
-                        Logger.Info($"Rejecting invalid RunningGame data during batch sync - preserving current: {Value.GameId.Name}");
-                        return false;
+                        Logger.Info($"GTLGo: el helper no reporta juego en la sincronizacion; se cierra '{Value.GameId.Name}'");
+                        return base.SetValue(new RunningGame(), updatedTime);
                     }
 
                     // Check if this is a valid "game closed" notification (ProcessId=0 or empty Name)

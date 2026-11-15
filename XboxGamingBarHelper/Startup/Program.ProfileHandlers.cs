@@ -870,6 +870,38 @@ namespace XboxGamingBarHelper
                 glo => glo.TDPBoostFPPT = performanceManager.TDPBoostFPPT.Value);
         }
 
+        private static int gtlgoRecheckPending = 0;
+
+        private static void ScheduleRunningGameRecheck()
+        {
+            if (System.Threading.Interlocked.Exchange(ref gtlgoRecheckPending, 1) == 1) return;
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    for (int i = 0; i < 20; i++)
+                    {
+                        await System.Threading.Tasks.Task.Delay(1000);
+                        if (!isApplyingProfile) break;
+                    }
+                    System.Threading.Interlocked.Exchange(ref gtlgoRecheckPending, 0);
+                    bool hasGame = systemManager.RunningGame.Value.IsValid();
+                    bool onGlobal = profileManager.CurrentProfile.IsGlobalProfile;
+                    bool sameGame = hasGame && profileManager.CurrentProfile.GameId.Equals(systemManager.RunningGame.Value.GameId);
+                    if ((!hasGame && !onGlobal) || (hasGame && !sameGame))
+                    {
+                        Logger.Info($"GTLGo: reintento de cambio de juego (juego={(hasGame ? systemManager.RunningGame.Value.GameId.Name : "ninguno")}, perfil={profileManager.CurrentProfile.GameId.Name})");
+                        RunningGame_PropertyChanged(null, new PropertyChangedEventArgs("RunningGame"));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Threading.Interlocked.Exchange(ref gtlgoRecheckPending, 0);
+                    Logger.Warn($"GTLGo: reintento de cambio de juego fallo: {ex.Message}");
+                }
+            });
+        }
+
         private static void RunningGame_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             GameId? autoCreateGame = null;
@@ -880,7 +912,10 @@ namespace XboxGamingBarHelper
             // Prevent reentrant profile handling
             if (isApplyingProfile)
             {
-                Logger.Debug("Skipping RunningGame_PropertyChanged - already applying profile");
+                // GTLGo: antes se descartaba y, si el juego se cerraba justo en ese momento,
+                // nunca se regresaba al perfil general. Ahora se reintenta al terminar.
+                Logger.Info("GTLGo: cambio de juego durante otra aplicacion de perfil; se reintenta en 1 s");
+                ScheduleRunningGameRecheck();
                 return;
             }
 
