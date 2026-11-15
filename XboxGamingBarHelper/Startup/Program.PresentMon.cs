@@ -89,8 +89,16 @@ namespace XboxGamingBarHelper
                 string output;
                 using (var p = System.Diagnostics.Process.Start(psi))
                 {
-                    output = p.StandardOutput.ReadToEnd();
-                    p.WaitForExit(5000);
+                    // GTLGo: never wait without a limit (this runs on the game-detection path).
+                    var read = p.StandardOutput.ReadToEndAsync();
+                    p.StandardError.ReadToEndAsync();
+                    if (!p.WaitForExit(5000) || !read.Wait(2000))
+                    {
+                        try { p.Kill(); } catch { }
+                        Logger.Warn("PresentMon: logman query did not answer in 5 s; ETW cleanup skipped");
+                        return;
+                    }
+                    output = read.Result;
                 }
                 int stopped = 0;
                 foreach (var rawLine in output.Split('\n'))
@@ -113,7 +121,14 @@ namespace XboxGamingBarHelper
                         };
                         using (var sp2 = System.Diagnostics.Process.Start(stopPsi))
                         {
-                            sp2.WaitForExit(3000);
+                            sp2.StandardOutput.ReadToEndAsync();
+                            sp2.StandardError.ReadToEndAsync();
+                            if (!sp2.WaitForExit(3000))
+                            {
+                                try { sp2.Kill(); } catch { }
+                                Logger.Warn($"PresentMon: logman stop {name} did not answer in 3 s");
+                                continue;
+                            }
                             if (sp2.ExitCode == 0)
                             {
                                 Logger.Info($"PresentMon: stopped orphan ETW session {name}");
@@ -156,7 +171,22 @@ namespace XboxGamingBarHelper
         /// Called from RunningGame_PropertyChanged. Wrapped in try/catch so the profile
         /// handler critical path is never affected by PresentMon faults.
         /// </summary>
+        private static readonly object _presentMonQueueGate = new object();
+        private static System.Threading.Tasks.Task _presentMonQueue = System.Threading.Tasks.Task.CompletedTask;
+
+        // GTLGo: start/stop PresentMon in order on a background queue so a slow or stuck
+        // PresentMon/logman can never block the profile switch or game detection.
         private static void OnRunningGameChangedForPresentMon()
+        {
+            if (_presentMonRunner == null) return;
+            lock (_presentMonQueueGate)
+            {
+                _presentMonQueue = _presentMonQueue.ContinueWith(_ => OnRunningGameChangedForPresentMonCore(),
+                    System.Threading.Tasks.TaskScheduler.Default);
+            }
+        }
+
+        private static void OnRunningGameChangedForPresentMonCore()
         {
             if (_presentMonRunner == null) return;
             try

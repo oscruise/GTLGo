@@ -132,17 +132,25 @@ namespace XboxGamingBarHelper.PresentMon
 
             if (_process != null)
             {
+                // GTLGo: Process.Dispose() takes the Process object's internal lock, and .NET
+                // raises Exited while holding that same lock. OnProcessExited used to wait for
+                // _gate there, so disposing here (with _gate held) deadlocked the helper's
+                // game-detection thread for good. Unhook first, kill, and dispose off-thread.
+                var p = _process;
+                _process = null;
                 try
                 {
-                    if (!_process.HasExited)
+                    try { p.Exited -= OnProcessExited; } catch { }
+                    try { p.OutputDataReceived -= OnStdoutLine; } catch { }
+                    try { p.ErrorDataReceived -= OnStderrLine; } catch { }
+                    if (!p.HasExited)
                     {
                         Logger.Info($"PresentMonRunner: stopping subprocess (reason={reason})");
-                        try { _process.Kill(); } catch { }
+                        try { p.Kill(); } catch { }
                     }
-                    _process.Dispose();
                 }
                 catch (Exception ex) { Logger.Debug($"PresentMonRunner: stop exception: {ex.Message}"); }
-                _process = null;
+                ThreadPool.QueueUserWorkItem(_ => { try { p.Dispose(); } catch { } });
             }
 
             // PresentMon.Kill() does not release its ETW session; if we don't
@@ -495,12 +503,21 @@ namespace XboxGamingBarHelper.PresentMon
 
         private void OnProcessExited(object sender, EventArgs e)
         {
+            var exited = sender as Process;
             int exitCode = -1;
-            try { exitCode = _process?.ExitCode ?? -1; } catch { }
+            try { exitCode = exited?.ExitCode ?? -1; } catch { }
             Logger.Info($"PresentMonRunner: subprocess exited (exitCode={exitCode}, linesParsed={Interlocked.Read(ref _linesParsed)})");
+            // GTLGo: .NET calls this while holding the Process object's lock; taking _gate here
+            // can deadlock against StopUnlocked. Handle the restart from the thread pool instead.
+            ThreadPool.QueueUserWorkItem(_ => HandleProcessExited(exited));
+        }
+
+        private void HandleProcessExited(Process exited)
+        {
             lock (_gate)
             {
                 if (!_active || _disposed) return;
+                if (exited != null && !ReferenceEquals(exited, _process)) return;
                 if (_restartCount >= 2)
                 {
                     Logger.Warn("PresentMonRunner: hit restart cap, will not respawn");
