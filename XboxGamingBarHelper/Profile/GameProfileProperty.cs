@@ -479,6 +479,19 @@ namespace XboxGamingBarHelper.Profile
             }
         }
 
+        // GTLGo: nivel del overlay que el jugador eligio para este juego (null: el del perfil general)
+        public int? OverlayLevel
+        {
+            get { return value.OverlayLevel; }
+            set
+            {
+                if (this.value.OverlayLevel != value)
+                {
+                    this.value.OverlayLevel = value;
+                }
+            }
+        }
+
         public int? LegionPerformanceMode
         {
             get { return value.LegionPerformanceMode; }

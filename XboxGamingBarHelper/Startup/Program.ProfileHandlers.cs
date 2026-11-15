@@ -608,6 +608,8 @@ namespace XboxGamingBarHelper
                         {
                             ApplyLegionControllerSettingsFromProfile();
                         }
+                        if (profileManager.CurrentProfile.Use && !profileManager.CurrentProfile.IsGlobalProfile)
+                            ApplyOverlayLevelFromProfile(profileManager.CurrentProfile.OverlayLevel, profileManager.CurrentProfile.GameId.Name);
                     }
                     finally
                     {
@@ -700,6 +702,7 @@ namespace XboxGamingBarHelper
                     performanceManager.SetTDP(performanceManager.TDP.Value);
                     powerManager.CPUBoost.SetValue(gameProfile.CPUBoost);
                     powerManager.CPUEPP.SetValue(gameProfile.CPUEPP);
+                    ApplyOverlayLevelFromProfile(gameProfile.OverlayLevel, gameProfile.GameId.Name);
                 }
                 else
                 {
@@ -751,6 +754,49 @@ namespace XboxGamingBarHelper
             {
                 profileSwitchTime = DateTime.UtcNow;
                 isApplyingProfile = false;
+            }
+        }
+
+        /// <summary>
+        /// GTLGo: el nivel del overlay que el jugador elige durante un juego se guarda en el perfil
+        /// de ese juego y se aplica la siguiente vez que el juego arranca. Antes solo existia el
+        /// nivel general: al cerrar el juego se restauraba y el que se eligio en el juego se perdia.
+        /// </summary>
+        private static void OnScreenDisplay_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (isApplyingProfile || IsInProfileSwitchCooldown()) return;
+            try
+            {
+                var cur = profileManager?.CurrentProfile;
+                if (cur == null || cur.IsGlobalProfile || !cur.Use || onScreenDisplay == null) return;
+                if (defaultGameProfileManager != null && defaultGameProfileManager.ProfileEnabled.Value) return;
+                int level = onScreenDisplay.Value;
+                if (cur.OverlayLevel != level)
+                {
+                    cur.OverlayLevel = level;
+                    Logger.Info($"GTLGo: overlay level {level} saved to profile {cur.GameId.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: could not save the overlay level to the game profile: {ex.Message}");
+            }
+        }
+
+        /// <summary>GTLGo: aplica el nivel de overlay guardado en el perfil del juego (si tiene uno).</summary>
+        private static void ApplyOverlayLevelFromProfile(int? saved, string name)
+        {
+            try
+            {
+                if (saved.HasValue && saved.Value >= 0 && saved.Value <= 3 && onScreenDisplay != null && onScreenDisplay.Value != saved.Value)
+                {
+                    Logger.Info($"GTLGo: applying overlay level {saved.Value} from profile {name} (was {onScreenDisplay.Value})");
+                    onScreenDisplay.SetValue(saved.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: could not apply the profile overlay level: {ex.Message}");
             }
         }
 
@@ -970,6 +1016,7 @@ namespace XboxGamingBarHelper
                             {
                                 ApplyLegionControllerSettingsFromProfile();
                             }
+                            ApplyOverlayLevelFromProfile(runningGameProfile.OverlayLevel, systemManager.RunningGame.Value.GameId.Name);
 
                             Logger.Info($"Applied per-game profile settings for {systemManager.RunningGame.Value.GameId.Name}: TDP={runningGameProfile.TDP}, AutoTDP={runningGameProfile.AutoTDPEnabled}");
                         }

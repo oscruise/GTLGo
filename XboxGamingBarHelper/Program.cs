@@ -1891,6 +1891,7 @@ namespace XboxGamingBarHelper
             }
             profileManager.PerGameProfile.PropertyChanged += PerGameProfile_PropertyChanged;
             performanceManager.TDP.PropertyChanged += TDP_PropertyChanged;
+            onScreenDisplay.PropertyChanged += OnScreenDisplay_PropertyChanged;   // GTLGo: overlay por juego
             performanceManager.TDPBoostEnabled.PropertyChanged += TDPBoostEnabled_PropertyChanged;
             performanceManager.TDPBoostSPPT.PropertyChanged += TDPBoostSPPT_PropertyChanged;
             performanceManager.TDPBoostFPPT.PropertyChanged += TDPBoostFPPT_PropertyChanged;
