@@ -146,6 +146,18 @@ namespace XboxGamingBarHelper.Systems
             "xenia_canary.exe",
         };
 
+        /// <summary>
+        /// GTLGo: true for a known emulator (GameProcesses) whose window title names no game yet.
+        /// </summary>
+        private static bool IsEmulatorWithoutGame(string processExecutable, string windowTitle)
+        {
+            if (string.IsNullOrEmpty(processExecutable) || !GameProcesses.Contains(processExecutable))
+            {
+                return false;
+            }
+            return string.IsNullOrEmpty(Shared.Utilities.StringHelper.GameNameFromTitle(windowTitle));
+        }
+
         private readonly RunningGameProperty runningGame;
         public RunningGameProperty RunningGame
         {
@@ -961,6 +973,15 @@ namespace XboxGamingBarHelper.Systems
                     if (IgnoredProcesses.Contains(processExecutable))
                     {
                         Logger.Debug($"Window {processWindow.Value.Path} is ignored");
+                        continue;
+                    }
+
+                    // GTLGo: un emulador sin juego cargado (su titulo aun no trae el nombre del juego,
+                    // p. ej. "lichii" mientras arranca) cuenta como menu: perfil general y overlay
+                    // general. El perfil se aplica cuando el titulo ya dice que juego es.
+                    if (IsEmulatorWithoutGame(processExecutable, processWindow.Value.Title))
+                    {
+                        Logger.Debug($"Window {processWindow.Value.Path} is an emulator with no game yet, treated as menu");
                         continue;
                     }
 
