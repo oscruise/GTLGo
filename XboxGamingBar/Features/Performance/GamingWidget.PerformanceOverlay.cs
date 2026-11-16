@@ -54,7 +54,12 @@ namespace XboxGamingBar
                 {
                     // (AMD Adrenalin overlay pass-through removed - RTSS is the
                     // only OSD provider.)
-                    PerformanceOverlaySlider.Value = index;
+                    // GTLGo: al cargar no se toca el slider: moverlo manda el nivel al helper
+                    // (tras 500 ms) y pisaba el del perfil activo; el helper lo sincroniza.
+                    if (!isLoadingPerformanceOverlaySetting)
+                    {
+                        PerformanceOverlaySlider.Value = index;
+                    }
                     // Save the setting (but not during initial load)
                     if (!isLoadingPerformanceOverlaySetting)
                     {
@@ -88,13 +93,10 @@ namespace XboxGamingBar
                 {
                     if (level >= 0 && level < PerformanceOverlayComboBox.Items.Count)
                     {
+                        // GTLGo: solo se muestra. El helper decide el nivel (general o del juego) y lo
+                        // sincroniza; mandarlo desde aqui al abrir la Game Bar ponia el ultimo nivel
+                        // usado encima del correcto (RetroBat con overlay, 15-nov 19:21).
                         PerformanceOverlayComboBox.SelectedIndex = level;
-                        // Also set the osd property value directly to avoid debounce delay
-                        // This ensures Quick Settings and helper have the correct value immediately
-                        if (osd != null)
-                        {
-                            osd.SetValue(level);
-                        }
                         Logger.Debug($"Loaded PerformanceOverlayLevel: {level}");
                     }
                 }

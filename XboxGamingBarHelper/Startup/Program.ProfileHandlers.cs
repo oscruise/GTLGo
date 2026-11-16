@@ -469,6 +469,7 @@ namespace XboxGamingBarHelper
             try
             {
                 int? globalOsd = OnScreenDisplayProperty.ReadGlobalLevel();
+                globalOverlayAtSwitch = globalOsd;
                 if (globalOsd.HasValue && onScreenDisplay != null && onScreenDisplay.Value != globalOsd.Value)
                 {
                     Logger.Info($"GTLGo: restoring global OSD level {globalOsd.Value} (was {onScreenDisplay.Value})");
@@ -762,15 +763,54 @@ namespace XboxGamingBarHelper
         /// de ese juego y se aplica la siguiente vez que el juego arranca. Antes solo existia el
         /// nivel general: al cerrar el juego se restauraba y el que se eligio en el juego se perdia.
         /// </summary>
+        /// <summary>GTLGo: nivel general del overlay al volver al perfil general (null: no leido).</summary>
+        private static int? globalOverlayAtSwitch;
+
+        /// <summary>
+        /// GTLGo: el widget manda el nivel del overlay tarde: guarda el ultimo valor en su propia
+        /// copia y lo reenvia al abrirse, y su espera de 500 ms se alarga a 10 s o mas cuando la
+        /// Game Bar se cierra. Ese valor llegaba despues de cambiar de perfil y se guardaba en el
+        /// que no era: el overlay apagado en RetroBat quedaba apagado en el juego (19:53, Mario
+        /// Kart) y el de un juego en RetroBat. Durante 15 s tras cambiar de perfil, un nivel
+        /// distinto al guardado de ese perfil se descarta y se vuelve al guardado.
+        /// </summary>
+        private static bool RevertLateOverlayLevel(int level, int? saved, string name)
+        {
+            if (!saved.HasValue || saved.Value == level ||
+                (DateTime.UtcNow - profileSwitchTime).TotalSeconds >= 15)
+            {
+                return false;
+            }
+            Logger.Info($"GTLGo: late overlay level {level} from the widget ignored for {name}; keeping {saved.Value}");
+            bool wasApplying = isApplyingProfile;
+            isApplyingProfile = true;
+            try
+            {
+                onScreenDisplay.SetValue(saved.Value);
+            }
+            finally
+            {
+                isApplyingProfile = wasApplying;
+            }
+            return true;
+        }
+
         private static void OnScreenDisplay_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (isApplyingProfile || IsInProfileSwitchCooldown()) return;
             try
             {
                 var cur = profileManager?.CurrentProfile;
-                if (cur == null || cur.IsGlobalProfile || !cur.Use || onScreenDisplay == null) return;
+                if (cur == null || onScreenDisplay == null) return;
+                if (cur.IsGlobalProfile)
+                {
+                    RevertLateOverlayLevel(onScreenDisplay.Value, globalOverlayAtSwitch, "the global profile");
+                    return;
+                }
+                if (!cur.Use) return;
                 if (defaultGameProfileManager != null && defaultGameProfileManager.ProfileEnabled.Value) return;
                 int level = onScreenDisplay.Value;
+                if (RevertLateOverlayLevel(level, cur.OverlayLevel, cur.GameId.Name)) return;
                 if (cur.OverlayLevel != level)
                 {
                     cur.OverlayLevel = level;
