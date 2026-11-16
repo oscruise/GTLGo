@@ -828,6 +828,15 @@ namespace XboxGamingBarHelper
             // TDP while a per-game profile is active. Expect the change to land in GlobalProfile
             // (and the per-game TDP to remain whatever was saved before). Pre-flag baseline:
             // always wrote to CurrentProfile regardless of flag.
+            // GTLGo: on battery the TDP is the profile's battery value (TDP_DC). It was saved into
+            // the AC value, so a game played on battery came back plugged in at the battery TDP.
+            if (!IsOnACPower())
+            {
+                RouteProfileSave(ProfileSaveFlagsState.TDP, "TDP (battery)",
+                    cur => cur.TDP_DC = performanceManager.TDP,
+                    glo => glo.TDP_DC = performanceManager.TDP);
+                return;
+            }
             RouteProfileSave(ProfileSaveFlagsState.TDP, "TDP",
                 cur => cur.TDP = performanceManager.TDP,
                 glo => glo.TDP = performanceManager.TDP);

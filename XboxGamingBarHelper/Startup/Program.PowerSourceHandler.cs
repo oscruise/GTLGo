@@ -101,6 +101,7 @@ namespace XboxGamingBarHelper
                 PowerSourceProfileState.DcAutoTdp = ParseBool("DcAutoTdp");
                 PowerSourceProfileState.AcAutoTdpFps = ParseInt("AcAutoTdpFps");
                 PowerSourceProfileState.DcAutoTdpFps = ParseInt("DcAutoTdpFps");
+                UseProfileFileTdp();
 
                 Logger.Info($"Applied PowerSourceProfileValues "
                     + $"(AC: tdp={PowerSourceProfileState.AcTdp?.ToString() ?? "-"}W, "
@@ -122,6 +123,60 @@ namespace XboxGamingBarHelper
                 return;
             }
             ReconcileTdpWithPowerSource();
+        }
+
+        /// <summary>True when a charger is connected (Inadequate counts as AC, as in the widget).</summary>
+        internal static bool IsOnACPower()
+        {
+            return global::Windows.System.Power.PowerManager.PowerSupplyStatus
+                   != global::Windows.System.Power.PowerSupplyStatus.NotPresent;
+        }
+
+        /// <summary>
+        /// GTLGo: the game's profile file decides its TDP. The widget keeps its own copy of each
+        /// profile and sends it when a game starts; Mario Kart World's copy still had 30 W / 25 W
+        /// while its file had 25 W / 20 W, and the copy won (Legion, 2026-11-15 19:21). For 15 s
+        /// after the helper switches to a game's profile the file's values replace the widget's;
+        /// after that a change made in the widget is the player's and is saved to the file.
+        /// </summary>
+        private static void UseProfileFileTdp()
+        {
+            try
+            {
+                var cur = profileManager?.CurrentProfile;
+                if (cur == null || cur.IsGlobalProfile || !cur.Use)
+                {
+                    return;
+                }
+                int fileAc = cur.TDP;
+                int fileDc = cur.TDP_DC ?? cur.TDP;
+                int? sentAc = PowerSourceProfileState.AcTdp, sentDc = PowerSourceProfileState.DcTdp;
+                if ((DateTime.UtcNow - profileSwitchTime).TotalSeconds < 15)
+                {
+                    if ((sentAc.HasValue && sentAc.Value != fileAc) || (sentDc.HasValue && sentDc.Value != fileDc))
+                    {
+                        Logger.Info($"GTLGo: the widget's copy of {cur.GameId.Name} says AC {sentAc}W / DC {sentDc}W; "
+                            + $"its profile file says AC {fileAc}W / DC {fileDc}W: the file wins");
+                    }
+                    PowerSourceProfileState.AcTdp = fileAc;
+                    PowerSourceProfileState.DcTdp = fileDc;
+                    return;
+                }
+                if (sentAc.HasValue && sentAc.Value > 0 && sentAc.Value != fileAc)
+                {
+                    Logger.Info($"GTLGo: AC TDP of {cur.GameId.Name} changed in the widget: {fileAc}W -> {sentAc.Value}W (saved)");
+                    cur.TDP = sentAc.Value;
+                }
+                if (sentDc.HasValue && sentDc.Value > 0 && sentDc.Value != fileDc)
+                {
+                    Logger.Info($"GTLGo: DC TDP of {cur.GameId.Name} changed in the widget: {fileDc}W -> {sentDc.Value}W (saved)");
+                    cur.TDP_DC = sentDc.Value;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"GTLGo: UseProfileFileTdp: {ex.Message}");
+            }
         }
 
         /// <summary>

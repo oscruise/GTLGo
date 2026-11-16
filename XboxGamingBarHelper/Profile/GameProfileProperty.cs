@@ -22,6 +22,19 @@ namespace XboxGamingBarHelper.Profile
             }
         }
 
+        // GTLGo: TDP on battery (null: the AC value)
+        public int? TDP_DC
+        {
+            get { return value.TDP_DC; }
+            set
+            {
+                if (this.value.TDP_DC != value)
+                {
+                    this.value.TDP_DC = value;
+                }
+            }
+        }
+
         public bool CPUBoost
         {
             get { return value.CPUBoost; }
