@@ -64,8 +64,9 @@ namespace XboxGamingBar.Data
         // so the widget (which loads from controller profiles) is authoritative.
         private static readonly HashSet<Function> NeverSyncFromHelper = new HashSet<Function>
         {
-            // OSD level - loaded from LocalSettings (PerformanceOverlayLevel)
-            Function.OSD,
+            // GTLGo: el nivel del overlay (Function.OSD) ya no esta aqui: el helper lo guarda por
+            // perfil (general y de cada juego) y es quien manda; el widget solo lo muestra. Con
+            // el nivel aqui y sin reenvio al abrir, el widget mostraba Off con el overlay en 1.
             // Lighting - loaded from controller profiles; helper defaults to #FFFFFF
             Function.LegionLightMode,
             Function.LegionLightColor,
