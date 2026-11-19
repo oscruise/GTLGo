@@ -125,6 +125,7 @@ namespace XboxGamingBarHelper.Systems
             "duckstation-qt-x64-releaseltcg.exe",
             "duckstation.exe",
             "eden.exe",
+            "fritchii.exe", // GTLGo: Fritchii v6 (lichii.exe solo la abre)
             "lichii.exe",
             "sudachi.exe",
             "yuzu.exe",
