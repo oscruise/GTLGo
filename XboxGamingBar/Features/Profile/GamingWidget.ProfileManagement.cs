@@ -72,10 +72,15 @@ namespace XboxGamingBar
                     var o = item.GetObject();
                     string name = o.ContainsKey("name") ? o.GetNamedString("name") : null;
                     if (string.IsNullOrEmpty(name)) continue;
+                    // GTLGo: "global" is the general profile (no game): its containers are
+                    // Profile_Global and the general AC/DC ones, Profile_AC and Profile_DC.
+                    bool isGlobal = string.Equals(name, "global", StringComparison.OrdinalIgnoreCase);
                     bool any = false;
                     foreach (var suffix in new[] { "", "_AC", "_DC" })
                     {
-                        string key = $"Profile_Game_{name}{suffix}";
+                        string key = isGlobal
+                            ? (suffix.Length == 0 ? "Profile_Global" : $"Profile{suffix}")
+                            : $"Profile_Game_{name}{suffix}";
                         if (!settings.Containers.ContainsKey(key)) continue;
                         var c = settings.Containers[key];
                         string tdpKey = (suffix == "_DC" && o.ContainsKey("tdpDc")) ? "tdpDc" : "tdp";

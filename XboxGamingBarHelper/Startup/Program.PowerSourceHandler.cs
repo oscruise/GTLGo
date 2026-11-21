@@ -133,6 +133,163 @@ namespace XboxGamingBarHelper
         }
 
         /// <summary>
+        /// GTLGo: a profile's TDP for a power state. The profile file keeps the AC value in TDP and
+        /// the battery one in TDP_DC (null or 0: the AC value). Every switch to a profile applied
+        /// TDP alone, and only the widget's PowerSourceProfileValues corrected it to the battery
+        /// value, so with the widget asleep a game detected again on battery stayed at its AC TDP
+        /// (Legion, 2026-11-21 10:42:08-10:45:58: Zelda at 25 W on battery, its battery TDP 20 W,
+        /// after four re-detections while FriGo's settings window came and went).
+        /// </summary>
+        internal static int ProfileTdpFor(Shared.Data.GameProfile profile, bool onAC)
+        {
+            if (onAC || !profile.TDP_DC.HasValue || profile.TDP_DC.Value <= 0)
+            {
+                return profile.TDP;
+            }
+            return profile.TDP_DC.Value;
+        }
+
+        /// <summary>GTLGo: a profile's CPU boost for a power state (CPUBoost_DC null: the AC value).</summary>
+        internal static bool ProfileCpuBoostFor(Shared.Data.GameProfile profile, bool onAC)
+        {
+            return onAC ? profile.CPUBoost : (profile.CPUBoost_DC ?? profile.CPUBoost);
+        }
+
+        /// <summary>GTLGo: a profile's CPU EPP for a power state (CPUEPP_DC null: the AC value).</summary>
+        internal static int ProfileCpuEppFor(Shared.Data.GameProfile profile, bool onAC)
+        {
+            return onAC ? profile.CPUEPP : (profile.CPUEPP_DC ?? profile.CPUEPP);
+        }
+
+        /// <summary>GTLGo: a profile's AutoTDP switch for a power state (AutoTDPEnabled_DC null: the AC value).</summary>
+        internal static bool ProfileAutoTdpFor(Shared.Data.GameProfile profile, bool onAC)
+        {
+            return onAC ? profile.AutoTDPEnabled : (profile.AutoTDPEnabled_DC ?? profile.AutoTDPEnabled);
+        }
+
+        /// <summary>GTLGo: a profile's AutoTDP target for a power state (AutoTDPTargetFPS_DC null: the AC value).</summary>
+        internal static int ProfileAutoTdpFpsFor(Shared.Data.GameProfile profile, bool onAC)
+        {
+            return onAC ? profile.AutoTDPTargetFPS : (profile.AutoTDPTargetFPS_DC ?? profile.AutoTDPTargetFPS);
+        }
+
+        /// <summary>
+        /// GTLGo: the helper's AC/DC cache takes the values of the profile it just switched to, from
+        /// its file. Before, only the widget filled the cache, so a charger plugged or pulled while
+        /// the widget slept applied the previous profile's AC/DC values to the new one.
+        /// </summary>
+        internal static void SeedPowerSourceStateFromProfile(Shared.Data.GameProfile profile, string name)
+        {
+            try
+            {
+                PowerSourceProfileState.AcTdp = ProfileTdpFor(profile, true);
+                PowerSourceProfileState.DcTdp = ProfileTdpFor(profile, false);
+                PowerSourceProfileState.AcCpuBoost = ProfileCpuBoostFor(profile, true);
+                PowerSourceProfileState.DcCpuBoost = ProfileCpuBoostFor(profile, false);
+                PowerSourceProfileState.AcCpuEpp = ProfileCpuEppFor(profile, true);
+                PowerSourceProfileState.DcCpuEpp = ProfileCpuEppFor(profile, false);
+                PowerSourceProfileState.AcAutoTdp = ProfileAutoTdpFor(profile, true);
+                PowerSourceProfileState.DcAutoTdp = ProfileAutoTdpFor(profile, false);
+                PowerSourceProfileState.AcAutoTdpFps = ProfileAutoTdpFpsFor(profile, true);
+                PowerSourceProfileState.DcAutoTdpFps = ProfileAutoTdpFpsFor(profile, false);
+                Logger.Info($"GTLGo: AC/DC values from the profile file of {name}: "
+                    + $"AC {PowerSourceProfileState.AcTdp}W, DC {PowerSourceProfileState.DcTdp}W");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: SeedPowerSourceStateFromProfile: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// GTLGo: logs which TDP a profile switch applies for the current power state.
+        /// </summary>
+        private static int ProfileTdpForNow(Shared.Data.GameProfile profile, string name)
+        {
+            bool onAC = IsOnACPower();
+            int tdp = ProfileTdpFor(profile, onAC);
+            Logger.Info($"GTLGo: {name}: TDP {tdp}W for the current power state ({(onAC ? "AC" : "DC")}; "
+                + $"profile AC {ProfileTdpFor(profile, true)}W / DC {ProfileTdpFor(profile, false)}W)");
+            return tdp;
+        }
+
+        /// <summary>
+        /// GTLGo: a TDP the widget sends in the first 15 s after the helper switched profile that
+        /// differs from the profile file's value for the current power state is the widget's own,
+        /// older copy of the profile (it keeps one per profile and sends it when the profile
+        /// changes). At 10:39:37 on 2026-11-21 its copy of the general profile (25 W) arrived 1.5 s
+        /// after the switch, was applied on battery and saved as the general profile's battery
+        /// TDP. Within that window the file wins; the helper's value is sent back to the widget.
+        /// After it, a change made in the widget is the player's, as before.
+        /// </summary>
+        internal static bool IsStaleWidgetTdp(int value)
+        {
+            try
+            {
+                double since = (DateTime.UtcNow - profileSwitchTime).TotalSeconds;
+                if (since < 0 || since >= 15 || isApplyingProfile)
+                {
+                    return false;
+                }
+                if (performanceManager == null || performanceManager.IsAutoTDPActive)
+                {
+                    return false;
+                }
+                if (defaultGameProfileManager != null && defaultGameProfileManager.ProfileEnabled.Value)
+                {
+                    return false;
+                }
+                var cur = profileManager?.CurrentProfile;
+                if (cur == null || (!cur.IsGlobalProfile && !cur.Use))
+                {
+                    return false;
+                }
+                bool onAC = IsOnACPower();
+                int file = ProfileTdpFor(cur.Value, onAC);
+                if (file <= 0 || value == file)
+                {
+                    return false;
+                }
+                Logger.Info($"GTLGo: TDP {value}W from the widget {since:F1} s after switching to {cur.GameId.Name} "
+                    + $"ignored: its profile file says {file}W ({(onAC ? "AC" : "DC")})");
+                SendTdpBackToWidget();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: IsStaleWidgetTdp: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static int tdpResyncPending = 0;
+
+        /// <summary>GTLGo: the widget's slider gets the helper's TDP back (after the pipe reply).</summary>
+        private static void SendTdpBackToWidget()
+        {
+            if (System.Threading.Interlocked.Exchange(ref tdpResyncPending, 1) == 1)
+            {
+                return;
+            }
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    await System.Threading.Tasks.Task.Delay(300);
+                    performanceManager?.TDP?.SyncToRemote();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Debug($"GTLGo: TDP resync failed: {ex.Message}");
+                }
+                finally
+                {
+                    System.Threading.Interlocked.Exchange(ref tdpResyncPending, 0);
+                }
+            });
+        }
+
+        /// <summary>
         /// GTLGo: the game's profile file decides its TDP. The widget keeps its own copy of each
         /// profile and sends it when a game starts; Mario Kart World's copy still had 30 W / 25 W
         /// while its file had 25 W / 20 W, and the copy won (Legion, 2026-11-15 19:21). For 15 s
@@ -144,13 +301,20 @@ namespace XboxGamingBarHelper
             try
             {
                 var cur = profileManager?.CurrentProfile;
-                if (cur == null || cur.IsGlobalProfile || !cur.Use)
+                if (cur == null || (!cur.IsGlobalProfile && !cur.Use))
                 {
                     return;
                 }
-                int fileAc = cur.TDP;
-                int fileDc = cur.TDP_DC ?? cur.TDP;
+                int fileAc = ProfileTdpFor(cur.Value, true);
+                int fileDc = ProfileTdpFor(cur.Value, false);
                 int? sentAc = PowerSourceProfileState.AcTdp, sentDc = PowerSourceProfileState.DcTdp;
+                // GTLGo: the general profile too (2026-11-21 10:37:24: the widget's copy, 25/25 W,
+                // replaced the file's 15 W a second after RetroBat came back). Only inside the
+                // window: after it the widget's values for the general profile apply as before.
+                if (cur.IsGlobalProfile && (DateTime.UtcNow - profileSwitchTime).TotalSeconds >= 15)
+                {
+                    return;
+                }
                 if ((DateTime.UtcNow - profileSwitchTime).TotalSeconds < 15)
                 {
                     if ((sentAc.HasValue && sentAc.Value != fileAc) || (sentDc.HasValue && sentDc.Value != fileDc))

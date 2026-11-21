@@ -195,6 +195,18 @@ namespace XboxGamingBarHelper.Profile
                     {
                         string name = e.TryGetProperty("name", out var nm) ? nm.GetString() : null;
                         if (string.IsNullOrEmpty(name)) continue;
+                        // GTLGo: "global" is the general profile (global.xml): TDP and battery TDP.
+                        if (string.Equals(name, GameProfile.GLOBAL_PROFILE_NAME, StringComparison.OrdinalIgnoreCase))
+                        {
+                            GameProfile glo = GlobalProfile;
+                            if (e.TryGetProperty("tdp", out var g1)) glo.TDP = g1.GetInt32();
+                            if (e.TryGetProperty("tdpDc", out var g2)) glo.TDP_DC = g2.GetInt32();
+                            glo.Save();
+                            GlobalProfile = glo;
+                            Logger.Info($"GTLGo import: perfil general TDP={glo.TDP} W, bateria={glo.TDP_DC} W");
+                            applied++;
+                            continue;
+                        }
                         GameId? key = null;
                         foreach (var kv in gameProfiles)
                             if (string.Equals(kv.Key.Name, name, StringComparison.OrdinalIgnoreCase)) { key = kv.Key; break; }

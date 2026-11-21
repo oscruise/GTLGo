@@ -2205,6 +2205,10 @@ namespace XboxGamingBar
                 Logger.Info("Clean install detected - will initialize profile with current system values after helper sync");
             }
 
+            // GTLGo: ajustes masivos de perfiles (una sola vez), antes de cargar los perfiles para
+            // que el general (Profile_Global/AC/DC) tambien los tome en esta misma sesion.
+            ImportGtlgoWidgetPresets();
+
             // Load profiles from storage
             LoadProfileFromStorage("Global", globalProfile);
             LoadProfileFromStorage("AC", acProfile);
@@ -2325,9 +2329,6 @@ namespace XboxGamingBar
 
             // Load Performance Overlay setting
             LoadPerformanceOverlaySetting();
-
-            // GTLGo: ajustes masivos de perfiles (una sola vez)
-            ImportGtlgoWidgetPresets();
 
             // Load Force Default Game Profile setting
             LoadForceDefaultGameProfileSetting();

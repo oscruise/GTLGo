@@ -36,6 +36,23 @@ namespace XboxGamingBarHelper.Performance
                 return false;
             }
 
+            // GTLGo: a widget value (it carries a timestamp) from the widget's older copy of the
+            // profile, right after a switch, does not replace the profile file's TDP.
+            if (updatedTime > 0)
+            {
+                int widgetValue;
+                if (newValue is int wi)
+                    widgetValue = wi;
+                else if (newValue is long wl)
+                    widgetValue = (int)wl;
+                else if (!int.TryParse(newValue?.ToString(), out widgetValue))
+                    widgetValue = -1;
+                if (widgetValue > 0 && Program.IsStaleWidgetTdp(widgetValue))
+                {
+                    return false;
+                }
+            }
+
             // On first SetValue after startup, force apply TDP to hardware
             // This ensures TDP is applied even if the value matches the cached value
             if (forceNextApply)

@@ -419,11 +419,15 @@ namespace XboxGamingBarHelper
             // SetValue would skip NotifyPropertyChanged when the value hasn't changed (e.g., game
             // profile had AutoTDP=true and corrupted global also has true), leaving the widget
             // with the wrong toggle state.
-            Logger.Debug($"Applying AutoTDPEnabled: {profile.AutoTDPEnabled}");
-            autoTDPManager.Enabled.ForceSetValue(profile.AutoTDPEnabled);
+            // GTLGo: the values for the current power state (the _DC ones on battery, when set).
+            bool onAC = IsOnACPower();
+            bool autoTdpEnabled = ProfileAutoTdpFor(profile.Value, onAC);
+            int autoTdpFps = ProfileAutoTdpFpsFor(profile.Value, onAC);
+            Logger.Debug($"Applying AutoTDPEnabled: {autoTdpEnabled} ({(onAC ? "AC" : "DC")})");
+            autoTDPManager.Enabled.ForceSetValue(autoTdpEnabled);
 
-            Logger.Debug($"Applying AutoTDPTargetFPS: {profile.AutoTDPTargetFPS}");
-            autoTDPManager.TargetFPS.SetValue(profile.AutoTDPTargetFPS);
+            Logger.Debug($"Applying AutoTDPTargetFPS: {autoTdpFps}");
+            autoTDPManager.TargetFPS.SetValue(autoTdpFps);
 
             Logger.Debug($"Applying AutoTDPMinTDP: {profile.AutoTDPMinTDP}");
             autoTDPManager.MinTDP.SetValue(profile.AutoTDPMinTDP);
@@ -506,7 +510,11 @@ namespace XboxGamingBarHelper
                 }
             }
 
-            performanceManager.TDP.SetProfileValue(profileManager.GlobalProfile.TDP);
+            // GTLGo: the TDP, CPU boost and EPP for the current power state (battery: the _DC ones).
+            var globalForState = profileManager.GlobalProfile;
+            bool globalOnAC = IsOnACPower();
+            SeedPowerSourceStateFromProfile(globalForState, "the general profile");
+            performanceManager.TDP.SetProfileValue(ProfileTdpForNow(globalForState, "the general profile"));
             performanceManager.TDPBoostEnabled.SetValue(profileManager.GlobalProfile.TDPBoostEnabled);
             // Per-profile boost deltas must come along on helper-side switches too —
             // previously only the widget pushed them, so with the widget closed the
@@ -522,8 +530,8 @@ namespace XboxGamingBarHelper
             // time, so this single call closes the window; the 150ms debounce dedupes
             // against any apply already in flight.
             performanceManager.SetTDP(performanceManager.TDP.Value);
-            powerManager.CPUBoost.SetValue(profileManager.GlobalProfile.CPUBoost);
-            powerManager.CPUEPP.SetValue(profileManager.GlobalProfile.CPUEPP);
+            powerManager.CPUBoost.SetValue(ProfileCpuBoostFor(globalForState, globalOnAC));
+            powerManager.CPUEPP.SetValue(ProfileCpuEppFor(globalForState, globalOnAC));
             profileManager.PerGameProfile.SetValue(false);
 
             // Apply Legion controller settings from global profile
@@ -593,15 +601,19 @@ namespace XboxGamingBarHelper
 
                         // Use SetProfileValue to ensure profile TDP takes precedence over in-flight widget messages
                         // All settings applied atomically under lock to prevent cross-contamination
-                        performanceManager.TDP.SetProfileValue(profileManager.CurrentProfile.TDP);
+                        // GTLGo: the TDP, CPU boost and EPP for the current power state.
+                        var currentForState = profileManager.CurrentProfile.Value;
+                        bool currentOnAC = IsOnACPower();
+                        SeedPowerSourceStateFromProfile(currentForState, profileManager.CurrentProfile.GameId.Name);
+                        performanceManager.TDP.SetProfileValue(ProfileTdpForNow(currentForState, profileManager.CurrentProfile.GameId.Name));
                         performanceManager.TDPBoostEnabled.SetValue(profileManager.CurrentProfile.TDPBoostEnabled);
                         performanceManager.TDPBoostSPPT.SetValue(profileManager.CurrentProfile.TDPBoostSPPT);
                         performanceManager.TDPBoostFPPT.SetValue(profileManager.CurrentProfile.TDPBoostFPPT);
                         // Unconditional re-apply — closes the equal-TDP/different-boost
                         // stale-SPPT/FPPT window (see RestoreGlobalProfileSettings).
                         performanceManager.SetTDP(performanceManager.TDP.Value);
-                        powerManager.CPUBoost.SetValue(profileManager.CurrentProfile.CPUBoost);
-                        powerManager.CPUEPP.SetValue(profileManager.CurrentProfile.CPUEPP);
+                        powerManager.CPUBoost.SetValue(ProfileCpuBoostFor(currentForState, currentOnAC));
+                        powerManager.CPUEPP.SetValue(ProfileCpuEppFor(currentForState, currentOnAC));
                         profileManager.PerGameProfile.SetValue(profileManager.CurrentProfile.Use);
 
                         // Apply Legion controller settings from profile (both global and per-game)
@@ -694,15 +706,18 @@ namespace XboxGamingBarHelper
                     ApplyAutoTDPSettingsFromProfile();
                     performanceManager.IsAutoTDPActive = false;
 
-                    performanceManager.TDP.SetProfileValue(gameProfile.TDP);
+                    // GTLGo: the TDP, CPU boost and EPP for the current power state.
+                    bool gameOnAC = IsOnACPower();
+                    SeedPowerSourceStateFromProfile(gameProfile, gameProfile.GameId.Name);
+                    performanceManager.TDP.SetProfileValue(ProfileTdpForNow(gameProfile, gameProfile.GameId.Name));
                     performanceManager.TDPBoostEnabled.SetValue(gameProfile.TDPBoostEnabled);
                     performanceManager.TDPBoostSPPT.SetValue(gameProfile.TDPBoostSPPT);
                     performanceManager.TDPBoostFPPT.SetValue(gameProfile.TDPBoostFPPT);
                     // Unconditional re-apply — closes the equal-TDP/different-boost
                     // stale-SPPT/FPPT window (see RestoreGlobalProfileSettings).
                     performanceManager.SetTDP(performanceManager.TDP.Value);
-                    powerManager.CPUBoost.SetValue(gameProfile.CPUBoost);
-                    powerManager.CPUEPP.SetValue(gameProfile.CPUEPP);
+                    powerManager.CPUBoost.SetValue(ProfileCpuBoostFor(gameProfile, gameOnAC));
+                    powerManager.CPUEPP.SetValue(ProfileCpuEppFor(gameProfile, gameOnAC));
                     ApplyOverlayLevelFromProfile(gameProfile.OverlayLevel, gameProfile.GameId.Name);
                 }
                 else
@@ -1056,10 +1071,16 @@ namespace XboxGamingBarHelper
                             ApplyAutoTDPSettingsFromProfile();
                             performanceManager.IsAutoTDPActive = false;
 
-                            performanceManager.TDP.SetProfileValue(runningGameProfile.TDP);
+                            // GTLGo: the TDP, CPU boost and EPP for the current power state. This
+                            // runs again each time the same game is detected again (foreground
+                            // changes): it applied the AC TDP on battery every time.
+                            bool runningOnAC = IsOnACPower();
+                            SeedPowerSourceStateFromProfile(runningGameProfile, systemManager.RunningGame.Value.GameId.Name);
+                            int runningTdp = ProfileTdpForNow(runningGameProfile, systemManager.RunningGame.Value.GameId.Name);
+                            performanceManager.TDP.SetProfileValue(runningTdp);
                             performanceManager.TDPBoostEnabled.SetValue(runningGameProfile.TDPBoostEnabled);
-                            powerManager.CPUBoost.SetValue(runningGameProfile.CPUBoost);
-                            powerManager.CPUEPP.SetValue(runningGameProfile.CPUEPP);
+                            powerManager.CPUBoost.SetValue(ProfileCpuBoostFor(runningGameProfile, runningOnAC));
+                            powerManager.CPUEPP.SetValue(ProfileCpuEppFor(runningGameProfile, runningOnAC));
 
                             if (legionManager != null)
                             {
@@ -1067,7 +1088,7 @@ namespace XboxGamingBarHelper
                             }
                             ApplyOverlayLevelFromProfile(runningGameProfile.OverlayLevel, systemManager.RunningGame.Value.GameId.Name);
 
-                            Logger.Info($"Applied per-game profile settings for {systemManager.RunningGame.Value.GameId.Name}: TDP={runningGameProfile.TDP}, AutoTDP={runningGameProfile.AutoTDPEnabled}");
+                            Logger.Info($"Applied per-game profile settings for {systemManager.RunningGame.Value.GameId.Name}: TDP={runningTdp}, AutoTDP={ProfileAutoTdpFor(runningGameProfile, runningOnAC)} ({(runningOnAC ? "AC" : "DC")})");
                         }
                         else
                         {
