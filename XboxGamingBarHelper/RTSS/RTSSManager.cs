@@ -542,6 +542,20 @@ namespace XboxGamingBarHelper.RTSS
         }
 
         /// <summary>
+        /// GTLGo: clears and releases an RTSS OSD slot without ever leaving it to the finalizer.
+        /// The OSD finalizer re-opens RTSS shared memory; if RTSS was closed or restarted in the
+        /// meantime it throws FileNotFoundException on the finalizer thread, which kills the
+        /// helper (2026-11-21 10:13:06: helper crash -> VIIPER restart -> virtual pad dropped).
+        /// </summary>
+        private static void SafeReleaseOsd(OSD osd, string why)
+        {
+            if (osd == null) return;
+            try { osd.Update(string.Empty); } catch (Exception ex) { Logger.Debug($"OSD clear ({why}) failed: {ex.Message}"); }
+            try { osd.Dispose(); } catch (Exception ex) { Logger.Debug($"OSD dispose ({why}) failed: {ex.Message}"); }
+            finally { GC.SuppressFinalize(osd); }
+        }
+
+        /// <summary>
         /// Resets the RTSS connection after hibernate/suspend resume.
         /// The OSD connection can become stale after hibernation, causing stale values.
         /// This forces the OSD to be recreated on the next Update() cycle.
@@ -553,16 +567,8 @@ namespace XboxGamingBarHelper.RTSS
             // Dispose existing OSD connection
             if (rtssOSD != null)
             {
-                try
-                {
-                    rtssOSD.Update(string.Empty); // Clear OSD content first
-                    rtssOSD.Dispose();
-                    Logger.Info("ResetRTSSConnection: Disposed stale RTSS OSD");
-                }
-                catch (Exception ex)
-                {
-                    Logger.Warn($"ResetRTSSConnection: Error disposing RTSS OSD: {ex.Message}");
-                }
+                SafeReleaseOsd(rtssOSD, "ResetRTSSConnection");
+                Logger.Info("ResetRTSSConnection: Disposed stale RTSS OSD");
                 rtssOSD = null;
             }
 
@@ -610,15 +616,7 @@ namespace XboxGamingBarHelper.RTSS
             {
                 if (rtssOSD != null)
                 {
-                    try
-                    {
-                        rtssOSD.Update(string.Empty);
-                        rtssOSD.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Debug($"Error clearing OSD: {ex.Message}");
-                    }
+                    SafeReleaseOsd(rtssOSD, "overlay off");
                     rtssOSD = null;
                 }
                 else if (!gtlgoOrphanOsdCleared && isRTSSRunning)
@@ -629,10 +627,8 @@ namespace XboxGamingBarHelper.RTSS
                     // (the OSD ctor reuses the slot with our owner name), blank it and release it.
                     try
                     {
-                        using (var orphan = new OSD(OSDAppName))
-                        {
-                            orphan.Update(string.Empty);
-                        }
+                        var orphan = new OSD(OSDAppName);
+                        SafeReleaseOsd(orphan, "leftover slot");
                         gtlgoOrphanOsdCleared = true;
                         Logger.Info("GTLGo: cleared any leftover GoTweaks OSD slot (overlay off)");
                     }
@@ -1037,17 +1033,9 @@ namespace XboxGamingBarHelper.RTSS
 
                 if (rtssOSD != null)
                 {
-                    try
-                    {
-                        rtssOSD.Update(string.Empty);
-                        rtssOSD.Dispose();
-                        rtssOSD = null;
-                        Logger.Info("RTSSManager: RTSS OSD disposed");
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Warn($"RTSSManager: Error disposing RTSS OSD: {ex.Message}");
-                    }
+                    SafeReleaseOsd(rtssOSD, "shutdown");
+                    rtssOSD = null;
+                    Logger.Info("RTSSManager: RTSS OSD disposed");
                 }
             }
             base.Dispose(disposing);
