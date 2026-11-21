@@ -42,6 +42,14 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
         private string activeDeviceType = DefaultDeviceType;
         private bool viiperOwnsSuppression;
 
+        // GTLGo: true desde que empieza Dispose. Dispose para VIIPER con Stop(), y StopLocked avisa a
+        // Labs (NotifyGuideRouteChanged -> OnGuideRouteChanged -> ReapplyMode) que vuelve a ARRANCAR la
+        // emulacion en el mismo hilo (el lock es reentrante); al volver, Dispose apagaba el reenvio
+        // (forwarder.Dispose). 21-nov 15:25:08-15:25:22: DualShock virtual nuevo, Legion oculto y sin
+        // botones hasta que se apago y prendio la emulacion a las 15:31. Con esto, nada arranca de
+        // nuevo una vez que empezo Dispose.
+        private volatile bool disposing;
+
         // Guide-only mode: when backend=VIIPER and the master Controller-Emulation
         // toggle is OFF, but a Labs button is mapped to "Xbox Guide", we spin up a
         // minimal xbox360 device through libviiper just to deliver the Guide press.
@@ -293,6 +301,11 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
             // visible in helper_2026-05-20_23.log around 23:13:14.
             lock (startLock)
             {
+                if (disposing)
+                {
+                    Logger.Info("VIIPER: ReapplyMode ignored (the manager is being disposed)");
+                    return;
+                }
                 bool backendOn = settingsManager?.EmulationBackend?.Value ?? false;
                 bool emulationEnabled = legacyManager?.EmulationEnabled ?? true;
 
@@ -347,6 +360,7 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
         /// </summary>
         public void OnGuideRouteChanged()
         {
+            if (disposing) return;
             try { ReapplyMode(); }
             catch (Exception ex) { Logger.Warn($"ViiperEmulationManager.OnGuideRouteChanged threw: {ex.Message}"); }
         }
@@ -461,7 +475,7 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
 
         private void StartGuideOnly()
         {
-            if (guideOnlyMode) return;
+            if (guideOnlyMode || disposing) return;
 
             if (settingsManager?.UsbipInstalled != null && !settingsManager.UsbipInstalled.Value)
             {
@@ -678,6 +692,11 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
 
         private bool StartLocked()
         {
+            if (disposing)
+            {
+                Logger.Info("VIIPER: start ignored (the manager is being disposed)");
+                return false;
+            }
             if (isRunning) return true;
 
             if (settingsManager?.UsbipInstalled != null && !settingsManager.UsbipInstalled.Value)
@@ -1305,13 +1324,19 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
 
             // Emulation just went away — tell Labs to re-spin the dedicated Guide-only
             // ViGEm pad if a Guide action is still mapped.
-            Program.NotifyGuideRouteChanged();
+            // GTLGo: no durante Dispose (ese aviso volvia a arrancar la emulacion, ver "disposing").
+            if (!disposing)
+            {
+                Program.NotifyGuideRouteChanged();
+            }
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
+                this.disposing = true;
+                Logger.Info("VIIPER emulation manager disposing (no restart from here on)");
                 if (legacyManager != null)
                 {
                     legacyManager.EmulationEnabledChanged -= OnEmulationEnabledChanged;

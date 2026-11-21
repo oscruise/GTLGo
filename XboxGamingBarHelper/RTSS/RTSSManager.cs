@@ -35,6 +35,9 @@ namespace XboxGamingBarHelper.RTSS
         private DateTime gtlgoStyleCheckedUtc = DateTime.MinValue;
         private string lastOsdConfig;
         private bool gtlgoLegionLevels = true;
+        // GTLGo: "esperando a RTSS" se anota una vez, no en cada tick.
+        private bool loggedOsdWait;
+        private DateTime rtssStartRequestedUtc = DateTime.MinValue;
 
         private void RefreshGtlgoStyle()
         {
@@ -542,6 +545,36 @@ namespace XboxGamingBarHelper.RTSS
         }
 
         /// <summary>
+        /// Abre RTSS si "Iniciar RTSS" esta activo y no esta abierto. Mientras se esta abriendo (hasta 60 s)
+        /// no se vuelve a lanzar; si a los 60 s no aparecio, se intenta de nuevo.
+        /// </summary>
+        private void StartRtssIfEnabled()
+        {
+            if (!SettingsManager.GetInstance().AutoStartRTSS)
+            {
+                return;
+            }
+            if (rtssState == RivatunerStatisticsServerState.Starting &&
+                (DateTime.UtcNow - rtssStartRequestedUtc).TotalSeconds < 60)
+            {
+                Logger.Debug("Starting Rivatuner Statistics Server..");
+                return;
+            }
+            rtssState = RivatunerStatisticsServerState.Starting;
+            rtssStartRequestedUtc = DateTime.UtcNow;
+            try
+            {
+                Logger.Info($"Start Rivatuner Statistics Server (overlay level {onScreenDisplayLevel}).");
+                Process.Start(RTSSHelper.ExecutablePath());
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to start Rivatuner Statistics Server.");
+                rtssState = RivatunerStatisticsServerState.NotRunning;
+            }
+        }
+
+        /// <summary>
         /// GTLGo: clears and releases an RTSS OSD slot without ever leaving it to the finalizer.
         /// The OSD finalizer re-opens RTSS shared memory; if RTSS was closed or restarted in the
         /// meantime it throws FileNotFoundException on the finalizer thread, which kills the
@@ -611,6 +644,22 @@ namespace XboxGamingBarHelper.RTSS
                 }
             }
             rtssWasRunning = isRTSSRunning;
+            // GTLGo: con el overlay en 0 el Update termina antes de marcar Running; sin esto el estado
+            // se quedaba en Starting y, si RTSS se cerraba despues, ya no se volvia a abrir.
+            if (isRTSSRunning && rtssState == RivatunerStatisticsServerState.Starting)
+            {
+                rtssState = RivatunerStatisticsServerState.Running;
+            }
+
+            // GTLGo: RTSS se abre en cuanto el helper arranca (con "Iniciar RTSS" activo), no solo
+            // cuando hay overlay. RTSS solo puede dibujar en un juego Vulkan que ya estaba hookeado
+            // al arrancar: el 21-nov el perfil de Zelda pidio el overlay, GTLGo abrio RTSS 30 s despues
+            // de FriGo y no hubo overlay en todo el juego (solo se vio en RetroBat al cerrarlo). Con el
+            // nivel 0 RTSS no dibuja nada (sus estadisticas propias estan apagadas).
+            if (!isRTSSRunning && onScreenDisplayLevel == 0)
+            {
+                StartRtssIfEnabled();
+            }
 
             if (onScreenDisplayLevel == 0)
             {
@@ -625,16 +674,17 @@ namespace XboxGamingBarHelper.RTSS
                     // "GoTweaks OSD" slot stays in RTSS shared memory and RTSS keeps drawing the
                     // last text, even in RetroBat with the overlay off. Claim that slot once
                     // (the OSD ctor reuses the slot with our owner name), blank it and release it.
-                    try
+                    // RtssOsdFactory: sin objeto fallido para el finalizador si RTSS aun no esta listo.
+                    var orphan = RtssOsdFactory.TryCreate(OSDAppName, out string orphanError);
+                    if (orphan != null)
                     {
-                        var orphan = new OSD(OSDAppName);
                         SafeReleaseOsd(orphan, "leftover slot");
                         gtlgoOrphanOsdCleared = true;
                         Logger.Info("GTLGo: cleared any leftover GoTweaks OSD slot (overlay off)");
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Logger.Debug($"GTLGo: leftover OSD clear failed (will retry): {ex.Message}");
+                        Logger.Debug($"GTLGo: leftover OSD clear skipped (will retry): {orphanError}");
                     }
                 }
 
@@ -643,27 +693,7 @@ namespace XboxGamingBarHelper.RTSS
 
             if (!isRTSSRunning)
             {
-                if (SettingsManager.GetInstance().AutoStartRTSS)
-                {
-                    if (rtssState == RivatunerStatisticsServerState.Starting)
-                    {
-                        Logger.Info("Starting Rivatuner Statistics Server..");
-                    }
-                    else
-                    {
-                        rtssState = RivatunerStatisticsServerState.Starting;
-                        try
-                        {
-                            Logger.Info("Start Rivatuner Statistics Server.");
-                            Process.Start(RTSSHelper.ExecutablePath());
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.Error(ex, "Failed to start Rivatuner Statistics Server.");
-                            rtssState = RivatunerStatisticsServerState.NotRunning;
-                        }
-                    }
-                }
+                StartRtssIfEnabled();
                 return;
             }
 
@@ -679,15 +709,25 @@ namespace XboxGamingBarHelper.RTSS
                 // That exception previously bubbled all the way to Main and
                 // killed the helper on launch when RTSS wasn't fully up —
                 // bail out of this tick instead and retry next time.
-                try
+                // GTLGo: con new OSD(...) un intento fallido dejaba el objeto en la cola del
+                // finalizador, cuyo !OSD() lanzaba FileNotFoundException en el hilo del finalizador
+                // (21-nov 15:25:06). RtssOsdFactory revisa la memoria compartida primero y, si el
+                // constructor falla, saca ese objeto del finalizador.
+                rtssOSD = RtssOsdFactory.TryCreate(OSDAppName, out string osdError);
+                if (rtssOSD == null)
                 {
-                    rtssOSD = new OSD(OSDAppName);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Debug($"RTSS OSD unavailable (shared memory not ready): {ex.Message}");
+                    if (!loggedOsdWait)
+                    {
+                        Logger.Info($"GTLGo: RTSS OSD not created yet ({osdError}); retrying every tick");
+                        loggedOsdWait = true;
+                    }
                     rtssState = RivatunerStatisticsServerState.NotRunning;
                     return;
+                }
+                if (loggedOsdWait)
+                {
+                    Logger.Info($"GTLGo: RTSS OSD created (failed attempts so far: {RtssOsdFactory.FailedAttempts})");
+                    loggedOsdWait = false;
                 }
             }
 

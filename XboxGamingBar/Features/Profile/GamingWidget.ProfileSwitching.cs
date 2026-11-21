@@ -950,15 +950,12 @@ namespace XboxGamingBar
                 // OSD level. OverlayLevel itself is out of scope for a full RouteProfileSave
                 // migration (see win32-2.0-migration.md - no clean per-game helper schema for the
                 // AMD-overlay-cycling half of this feature), so just add the same guard TDP uses.
-                if (SaveOverlayLevel && PerformanceOverlayComboBox != null && !isApplyingHelperUpdate && !isInitialSync)
-                {
-                    int level = profile.OverlayLevel;
-                    if (level >= 0 && level < PerformanceOverlayComboBox.Items.Count)
-                    {
-                        PerformanceOverlayComboBox.SelectedIndex = level;
-                        // The SelectionChanged handler will update PerformanceOverlaySlider and send to system
-                    }
-                }
+                // GTLGo: el nivel del overlay ya no se carga desde la copia del widget. El helper lo
+                // guarda por perfil (general y de cada juego), lo aplica al cambiar de perfil y se
+                // lo manda al widget. Cargar aqui la copia vieja movia el control y la mandaba al
+                // helper 0.5-13 s despues: 21-nov 15:24:48 el perfil de Zelda del widget (Off)
+                // llego como "Set OSD: 0" con el overlay del juego en 1, y al salir (15:30:25) el
+                // del perfil general (1) con el general en 0.
 
                 // Update profile display to show correct TDP mode in Profiles tab
                 UpdateProfileDisplay();

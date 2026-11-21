@@ -807,7 +807,86 @@ namespace XboxGamingBarHelper
             {
                 isApplyingProfile = wasApplying;
             }
+            // GTLGo: este SetValue corre dentro del Set del widget (SuppressRemoteSync), asi que el
+            // widget no recibia el nivel bueno y seguia mostrando el viejo (21-nov: Off con el overlay
+            // en 1). Se le reenvia despues de la respuesta del pipe.
+            SendOverlayBackToWidget();
             return true;
+        }
+
+        /// <summary>
+        /// GTLGo: lo mismo que RevertLateOverlayLevel, pero antes de aplicar el nivel (lo llama
+        /// OnScreenDisplayProperty.SetValue con los valores del widget). Asi el overlay no se apaga y
+        /// prende (cada cambio crea y suelta el OSD de RTSS) y el widget recibe el nivel correcto.
+        /// </summary>
+        internal static bool IsStaleWidgetOverlay(int level)
+        {
+            try
+            {
+                double since = (DateTime.UtcNow - profileSwitchTime).TotalSeconds;
+                if (since < 0 || since >= 15 || isApplyingProfile)
+                {
+                    return false;
+                }
+                var cur = profileManager?.CurrentProfile;
+                if (cur == null)
+                {
+                    return false;
+                }
+                int? saved;
+                string name;
+                if (cur.IsGlobalProfile)
+                {
+                    saved = globalOverlayAtSwitch;
+                    name = "the global profile";
+                }
+                else
+                {
+                    if (!cur.Use) return false;
+                    if (defaultGameProfileManager != null && defaultGameProfileManager.ProfileEnabled.Value) return false;
+                    saved = cur.OverlayLevel;
+                    name = cur.GameId.Name;
+                }
+                if (!saved.HasValue || saved.Value == level)
+                {
+                    return false;
+                }
+                Logger.Info($"GTLGo: overlay level {level} from the widget {since:F1} s after switching to {name} refused: its profile says {saved.Value} (sent back to the widget)");
+                SendOverlayBackToWidget();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: IsStaleWidgetOverlay: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static int overlayResyncPending = 0;
+
+        /// <summary>GTLGo: el widget recibe el nivel del overlay del helper (despues de la respuesta del pipe).</summary>
+        private static void SendOverlayBackToWidget()
+        {
+            if (System.Threading.Interlocked.Exchange(ref overlayResyncPending, 1) == 1)
+            {
+                return;
+            }
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    await System.Threading.Tasks.Task.Delay(300);
+                    onScreenDisplay?.SyncToRemote();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Debug($"GTLGo: overlay resync failed: {ex.Message}");
+                }
+                finally
+                {
+                    System.Threading.Interlocked.Exchange(ref overlayResyncPending, 0);
+                }
+            });
         }
 
         private static void OnScreenDisplay_PropertyChanged(object sender, PropertyChangedEventArgs e)

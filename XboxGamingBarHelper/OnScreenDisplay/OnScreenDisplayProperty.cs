@@ -48,6 +48,29 @@ namespace XboxGamingBarHelper.OnScreenDisplay
             return defaultValue;
         }
 
+        /// <summary>
+        /// GTLGo: un nivel del widget (trae su marca de tiempo) que es la copia vieja del perfil, justo
+        /// despues de cambiar de perfil, no se aplica (ver Program.IsStaleWidgetOverlay).
+        /// </summary>
+        public override bool SetValue(object newValue, long updatedTime = 0)
+        {
+            if (updatedTime > 0)
+            {
+                int level;
+                if (newValue is int i)
+                    level = i;
+                else if (newValue is long l)
+                    level = (int)l;
+                else if (!int.TryParse(newValue?.ToString(), out level))
+                    level = -1;
+                if (level >= 0 && Program.IsStaleWidgetOverlay(level))
+                {
+                    return false;
+                }
+            }
+            return base.SetValue(newValue, updatedTime);
+        }
+
         const string GlobalLevelFile = "gtlgo_osd_global.txt";
         static readonly DateTime HelperStartUtc = DateTime.UtcNow;
 

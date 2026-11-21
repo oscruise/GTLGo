@@ -416,6 +416,18 @@ namespace XboxGamingBarHelper
             {
                 try
                 {
+                    // GTLGo: App.config tiene legacyUnhandledExceptionPolicy, asi que una excepcion
+                    // en un hilo de fondo o del finalizador NO cierra el helper (IsTerminating=false).
+                    // Antes este manejador soltaba igual el ventilador, HidHide y VIIPER con el
+                    // helper vivo: el 21-nov 15:25:06 (finalizador del OSD de RTSS) el DualShock
+                    // virtual se rearmo y quedo sin reenvio de botones hasta 15:31. Solo se suelta
+                    // todo cuando el proceso de verdad va a terminar.
+                    if (!e.IsTerminating)
+                    {
+                        Logger.Error($"GTLGo: unhandled exception on a background thread; the helper keeps running and keeps the controller, fan and VIIPER as they are. Exception: {e.ExceptionObject}");
+                        LogManager.Flush();
+                        return;
+                    }
                     Logger.Error($"UnhandledException — releasing EC fan + HidHide suppression + VIIPER bus. Exception: {e.ExceptionObject}");
                     try { Shared.Data.GameProfile.FlushAllPendingWrites(); }
                     catch (Exception ex) { Logger.Warn($"UnhandledException FlushAllPendingWrites threw: {ex.Message}"); }
@@ -2173,6 +2185,10 @@ namespace XboxGamingBarHelper
 
                 // Write heartbeat file so widget can detect if helper is running
                 WriteHeartbeat();
+
+                // GTLGo: pruebas de fallas de la suite de la Legion (solo con LocalState\gtlgo_prueba.txt).
+                try { GtlgoPruebas.Poll(); }
+                catch (Exception ex) { Logger.Debug($"GtlgoPruebas.Poll threw: {ex.Message}"); }
 
                 // Self-heal the pipe server: if the accept loop ever exits without a
                 // shutdown request, restart it. Prevents the alive-but-unreachable wedge
