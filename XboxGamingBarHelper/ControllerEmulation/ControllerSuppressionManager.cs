@@ -406,7 +406,15 @@ namespace XboxGamingBarHelper.ControllerEmulation
                 // forever. A genuine firmware mode flip lands well outside this window.
                 if ((DateTime.UtcNow - lastRestartCompletedUtc) < TimeSpan.FromSeconds(15))
                 {
-                    Logger.Info("HidHide suppression re-assert skipped: reconnect follows our own device restart.");
+                    // GTLGo: the restart itself re-enumerates the pad under a NEW instance id
+                    // (IG_00 -> IG_01 ...), which the cloak doesn't cover, so the stock pad
+                    // stays visible to RetroBat/SDL (double input). Hide the new ids without
+                    // another restart, so this can't loop.
+                    Logger.Info("HidHide suppression re-assert: reconnect follows our own device restart - hiding new instance ids without restarting.");
+                    deviceType = lastEnableDeviceType;
+                    hideTargetMode = lastEnableHideTargetMode;
+                    excluded = lastEnableExcludedDeviceIds;
+                    HideNewInstancesWithoutRestartLocked(deviceType, hideTargetMode, excluded);
                     return;
                 }
 
@@ -417,6 +425,47 @@ namespace XboxGamingBarHelper.ControllerEmulation
 
             Logger.Info("HidHide suppression re-assert: controller re-presented while suppression active - re-running enable pass.");
             Enable(deviceType, hideTargetMode, excluded);
+        }
+
+        /// <summary>
+        /// GTLGo: adds currently-present suppressible ids that aren't hidden yet, without
+        /// removing anything and without restarting devices. Retries briefly while the
+        /// re-enumerated pad finishes appearing. Caller holds syncRoot.
+        /// </summary>
+        private void HideNewInstancesWithoutRestartLocked(DeviceType deviceType, int hideTargetMode, IReadOnlyCollection<string> excludedDeviceIds)
+        {
+            if (!TryGetApiService(out IHidHideControlService service, logMissing: true))
+            {
+                return;
+            }
+
+            HashSet<string> excluded = new HashSet<string>(excludedDeviceIds ?? new string[0], StringComparer.OrdinalIgnoreCase);
+            int added = 0;
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                try
+                {
+                    RefreshHiddenDeviceIdsFromApi(service);
+                    foreach (string id in EnumerateDeviceInstanceIds(deviceType, hideTargetMode))
+                    {
+                        if (excluded.Contains(id) || hiddenDeviceIds.Contains(id)) continue;
+                        if (TryApiAddBlockedInstanceId(service, id))
+                        {
+                            hiddenDeviceIds.Add(id);
+                            added++;
+                            Logger.Info($"HidHide: nueva instancia del control oculta sin reinicio: '{id}'");
+                        }
+                    }
+                    if (!service.IsActive) service.IsActive = true;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"HidHide add-only pass failed: {ex.Message}");
+                }
+                if (added > 0) break;
+                System.Threading.Thread.Sleep(1500);
+            }
+            Logger.Info($"HidHide add-only pass done: added={added}, hidden={hiddenDeviceIds.Count}");
         }
 
         public void Disable()
