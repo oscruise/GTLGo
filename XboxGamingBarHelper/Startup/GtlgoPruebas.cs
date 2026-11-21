@@ -14,6 +14,7 @@ namespace XboxGamingBarHelper
     /// <item>excepcion_hilo: excepcion no controlada en un hilo de fondo.</item>
     /// <item>excepcion_finalizador: excepcion en el hilo del finalizador (lo que hizo el OSD de RTSS
     /// el 21-nov 15:25:06).</item>
+    /// <item>soltar_viiper: suelta VIIPER como al salir, con el helper vivo (no debe volver a armarse).</item>
     /// <item>salida: el helper termina con Environment.Exit(0) (prueba que al salir suelta HidHide y
     /// VIIPER y no vuelve a armarlos).</item>
     /// </list>
@@ -74,6 +75,13 @@ namespace XboxGamingBarHelper
                     });
                     break;
 
+                case "soltar_viiper":
+                    // Lo que hace la salida del helper con VIIPER, pero con el helper vivo y el log
+                    // abierto (al salir, NLog ya se cerro y no queda registro): revisa que soltar
+                    // VIIPER no lo vuelva a armar.
+                    Program.GtlgoPruebaSoltarViiper();
+                    break;
+
                 case "salida":
                     Logger.Warn("GTLGo prueba: the helper exits now (Environment.Exit)");
                     LogManager.Flush();
@@ -81,7 +89,7 @@ namespace XboxGamingBarHelper
                     break;
 
                 default:
-                    Logger.Warn($"GTLGo prueba: unknown test '{word}' (excepcion_hilo, excepcion_finalizador, salida)");
+                    Logger.Warn($"GTLGo prueba: unknown test '{word}' (excepcion_hilo, excepcion_finalizador, soltar_viiper, salida)");
                     break;
             }
         }

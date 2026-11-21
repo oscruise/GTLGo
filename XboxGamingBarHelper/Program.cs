@@ -2223,6 +2223,23 @@ namespace XboxGamingBarHelper
         }
 
         /// <summary>
+        /// GTLGo prueba (GtlgoPruebas "soltar_viiper"): suelta VIIPER como la salida del helper, con el
+        /// helper vivo, para revisar en el log que no se vuelve a armar. La suite reinicia el helper despues.
+        /// </summary>
+        internal static void GtlgoPruebaSoltarViiper()
+        {
+            try
+            {
+                viiperEmulationManager?.Dispose();
+                Logger.Warn("GTLGo prueba: VIIPER disposed with the helper alive");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo prueba: VIIPER dispose threw: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Disposes all managers to free resources
         /// </summary>
         private static void DisposeManagers()
