@@ -1754,6 +1754,7 @@ namespace XboxGamingBarHelper
                 legionManager.LegionButtonDesktop,
                 legionManager.LegionButtonPage,
                 legionManager.LegionNintendoLayout,
+                legionManager.LegionSwapLegionMenu,
                 legionManager.LegionVibrationMode,
                 legionManager.LegionControllerProfileEnabled,
                 // Gyro properties
@@ -1880,6 +1881,7 @@ namespace XboxGamingBarHelper
                         catch (Exception ex) { Logger.Warn($"Suppression re-assert after controller reconnect failed: {ex.Message}"); }
                         try { legionManager?.ReapplyJoystickAsMouseState(); }
                         catch (Exception ex) { Logger.Warn($"Joystick-as-mouse reapply after controller reconnect failed: {ex.Message}"); }
+                        legionManager?.ReapplyLegionMenuSwap("el receptor se reconecto");
                         // Sleep timer is stored per half; a half that was asleep or
                         // detached when the setting was written kept its old value and
                         // sleeps on a different schedule than its twin. Re-send on every

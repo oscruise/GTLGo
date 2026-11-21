@@ -873,6 +873,7 @@ namespace XboxGamingBar
         private readonly LegionButtonDesktopProperty legionButtonDesktop;
         private readonly LegionButtonPageProperty legionButtonPage;
         private readonly LegionNintendoLayoutProperty legionNintendoLayout;
+        private readonly LegionSwapLegionMenuProperty legionSwapLegionMenu;
         private readonly LegionVibrationModeProperty legionVibrationMode;
         private readonly LegionControllerProfileProperty legionControllerProfile;
 
@@ -1607,6 +1608,7 @@ namespace XboxGamingBar
             legionButtonDesktop = new LegionButtonDesktopProperty(LegionButtonDesktopComboBox, this);
             legionButtonPage = new LegionButtonPageProperty(LegionButtonPageComboBox, this);
             legionNintendoLayout = new LegionNintendoLayoutProperty(LegionNintendoLayoutToggle, this);
+            legionSwapLegionMenu = new LegionSwapLegionMenuProperty(LegionSwapLegionMenuToggle, this);
             legionVibrationMode = new LegionVibrationModeProperty(LegionVibrationModeComboBox, this);
             legionControllerProfile = new LegionControllerProfileProperty(LegionControllerProfileToggle, this);
 
@@ -1991,6 +1993,7 @@ namespace XboxGamingBar
                 legionChargeLimit,
                 legionTouchpadVibration,
                 legionNintendoLayout,
+                legionSwapLegionMenu,
                 legionControllerProfile,
                 legionGamepadMapping,
                 legionButtonY1,

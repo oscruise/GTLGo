@@ -608,5 +608,10 @@
         // = identity, a no-op over the hardcoded per-target frame.
         Viiper_GyroTuning,          // string - gyroscope tuning matrix + inverts
         Viiper_AccelTuning,         // string - accelerometer tuning matrix + inverts
+
+        // GTLGo: firmware swap of Legion L/R with View/Menu (05 06 69 04 01 [02/01] 01,
+        // the same command Legion Space and hhd's "Swap Legion with Menu/View" send).
+        // Volatile in the controller: reapplied by the helper on every (re)connect.
+        LegionSwapLegionMenu,       // bool
     }
 }

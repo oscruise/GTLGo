@@ -514,6 +514,8 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
                             await Task.Delay(2000);
                             try { ReapplyJoystickAsMouseState(); }
                             catch (Exception ex) { Logger.Warn($"Joystick-as-mouse reapply after reconnect failed: {ex.Message}"); }
+                            // A half that slept or lost power comes back with the factory layout.
+                            ReapplyLegionMenuSwap("un control se reconecto o desperto");
                         });
                     }
                 }

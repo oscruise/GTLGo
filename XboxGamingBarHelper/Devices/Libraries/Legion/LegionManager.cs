@@ -250,6 +250,7 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
         public readonly LegionButtonDesktopProperty LegionButtonDesktop;
         public readonly LegionButtonPageProperty LegionButtonPage;
         public readonly LegionNintendoLayoutProperty LegionNintendoLayout;
+        public readonly LegionSwapLegionMenuProperty LegionSwapLegionMenu;
         public readonly LegionVibrationModeProperty LegionVibrationMode;
         public readonly LegionControllerProfileEnabledProperty LegionControllerProfileEnabled;
 
@@ -562,6 +563,7 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
             LegionButtonDesktop = new LegionButtonDesktopProperty("", this);
             LegionButtonPage = new LegionButtonPageProperty("", this);
             LegionNintendoLayout = new LegionNintendoLayoutProperty(nintendoLayoutEnabled, this);
+            LegionSwapLegionMenu = new LegionSwapLegionMenuProperty(LegionMenuSwapEnabled, this);
             LegionVibrationMode = new LegionVibrationModeProperty(vibrationMode, this);
             LegionControllerProfileEnabled = new LegionControllerProfileEnabledProperty(false, this);
 
@@ -815,6 +817,7 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
                         isControllerConnected = true;
                         isLegionGoDetected = true;
                         ApplyGtlgoLegionSwapFile();
+                        ReapplyLegionMenuSwap("conexión inicial");
                         // Don't override SupportsControllerRemap here - respect the DeviceConfig value
                         // Legion Go S has different HID structure that doesn't support remapping even if controller connects
                         if (deviceInfo.SupportsControllerRemap)
@@ -3197,12 +3200,65 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
             }
         }
 
+        // GTLGo: Legion L/R <-> View/Menu swap. The controller keeps it only until it
+        // powers off (auto-sleep, empty battery, reboot); Legion Space reapplies it on every
+        // connect, and since Legion Space is not running here, the helper does it instead.
+        // Command 05 06 69 04 01 [02=on / 01=off] 01 (same as hhd "Swap Legion with Menu/View").
+        private const string LegionMenuSwapKey = "LegionSwapLegionMenu";
+        private bool? legionMenuSwapEnabled;
+
+        internal bool LegionMenuSwapEnabled
+        {
+            get
+            {
+                if (legionMenuSwapEnabled == null)
+                {
+                    bool v = true; // default ON: the user's preferred layout
+                    try { if (Settings.LocalSettingsHelper.TryGetValue<bool>(LegionMenuSwapKey, out bool saved)) v = saved; }
+                    catch (Exception ex) { Logger.Debug($"GTLGo: could not read {LegionMenuSwapKey}: {ex.Message}"); }
+                    legionMenuSwapEnabled = v;
+                    Logger.Info($"GTLGo: swap Legion/Menu loaded: {v}");
+                }
+                return legionMenuSwapEnabled.Value;
+            }
+        }
+
+        public bool SetLegionMenuSwap(bool enabled, out string failureReason)
+        {
+            failureReason = null;
+            legionMenuSwapEnabled = enabled;
+            try { Settings.LocalSettingsHelper.SetValue(LegionMenuSwapKey, enabled); }
+            catch (Exception ex) { Logger.Debug($"GTLGo: could not persist {LegionMenuSwapKey}: {ex.Message}"); }
+            if (!isControllerConnected || controllerService == null)
+            {
+                // Saved; it will be sent on the next (re)connect.
+                Logger.Info($"GTLGo: swap Legion/Menu={enabled} guardado; se enviara al reconectar el control");
+                return true;
+            }
+            var r = controllerService.SetControllerSwap(enabled);
+            Logger.Info($"GTLGo: swap Legion/Menu={enabled} (cambio del usuario): ok={r.Success} {r.Message}");
+            if (!r.Success) failureReason = r.Message;
+            return r.Success;
+        }
+
+        /// <summary>Re-sends the stored swap state. Called on connect and after any half reconnects/wakes.</summary>
+        public void ReapplyLegionMenuSwap(string why)
+        {
+            try
+            {
+                if (controllerService == null) return;
+                bool enabled = LegionMenuSwapEnabled;
+                var r = controllerService.SetControllerSwap(enabled);
+                Logger.Info($"GTLGo: swap Legion/Menu={enabled} reaplicado ({why}): ok={r.Success} {r.Message}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"GTLGo: no se pudo reaplicar el swap Legion/Menu ({why}): {ex.Message}");
+            }
+        }
+
         /// <summary>
-        /// Sets the Nintendo layout mode (swaps A↔B and X↔Y face buttons).
-        /// </summary>
-        /// <summary>
-        /// GTLGo (experimental): LocalState\gtlgo_legion_swap.txt = "on"/"off" envía al control el
-        /// comando de intercambio (05 06 69 04 01 [02=on/01=off] 01) una sola vez y renombra el archivo.
+        /// GTLGo (legacy): LocalState\gtlgo_legion_swap.txt = "on"/"off" sets the swap setting once and renames the file.
         /// </summary>
         private void ApplyGtlgoLegionSwapFile()
         {
@@ -3212,8 +3268,9 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
                 if (!System.IO.File.Exists(f) || controllerService == null) return;
                 string v = System.IO.File.ReadAllText(f).Trim().ToLowerInvariant();
                 if (v != "on" && v != "off") return;
-                var r = controllerService.SetControllerSwap(v == "on");
-                Logger.Info($"GTLGo: swap Legion {v}: ok={r.Success} {r.Message}");
+                legionMenuSwapEnabled = v == "on";
+                try { Settings.LocalSettingsHelper.SetValue(LegionMenuSwapKey, v == "on"); } catch { }
+                Logger.Info($"GTLGo: swap Legion/Menu fijado por archivo: {v}");
                 string done = f + ".aplicado";
                 if (System.IO.File.Exists(done)) System.IO.File.Delete(done);
                 System.IO.File.Move(f, done);
@@ -3224,6 +3281,9 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
             }
         }
 
+        /// <summary>
+        /// Sets the Nintendo layout mode (swaps A↔B and X↔Y face buttons).
+        /// </summary>
         public bool SetNintendoLayout(bool enabled, out string failureReason)
         {
             failureReason = null;

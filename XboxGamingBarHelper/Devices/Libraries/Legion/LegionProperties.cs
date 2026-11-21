@@ -1065,6 +1065,28 @@ namespace XboxGamingBarHelper.Devices.Libraries.Legion
         }
     }
 
+    // GTLGo: Legion L/R <-> View/Menu swap (firmware), reapplied on every reconnect
+    internal class LegionSwapLegionMenuProperty : HelperProperty<bool, LegionManager>, IHardwareApplyResult
+    {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
+        public bool LastApplySucceeded { get; private set; } = true;
+        public string LastApplyFailureReason { get; private set; }
+
+        public LegionSwapLegionMenuProperty(bool initialValue, LegionManager inManager) : base(initialValue, null, Function.LegionSwapLegionMenu, inManager)
+        {
+        }
+
+        protected override void NotifyPropertyChanged(string propertyName = "")
+        {
+            base.NotifyPropertyChanged(propertyName);
+            Logger.Info($"LegionSwapLegionMenu changed to {Value}");
+            string reason = "Legion manager is not available.";
+            LastApplySucceeded = Manager != null && Manager.SetLegionMenuSwap(Value, out reason);
+            LastApplyFailureReason = LastApplySucceeded ? null : (reason ?? "Legion/Menu swap could not be applied.");
+        }
+    }
+
     // Vibration mode preset (FPS=1, Racing=2, AVG=3, SPG=4, RPG=5)
     internal class LegionVibrationModeProperty : HelperProperty<int, LegionManager>
     {

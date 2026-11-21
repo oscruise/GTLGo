@@ -8875,6 +8875,25 @@
                             </Grid>
                         </Border>
 
+                        <!-- GTLGo: Legion L/R <-> View/Menu swap Card -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Intercambiar Legion con Menú/Vista" Style="{StaticResource CardTitleStyle}"/>
+                                    <TextBlock Text="Legion L↔Vista y Legion R↔Menú; se vuelve a aplicar cada vez que los controles se reconectan o despiertan"
+                                               Style="{StaticResource CardCaptionStyle}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="LegionSwapLegionMenuToggle"
+                                              Grid.Column="1"
+                                              Style="{StaticResource ModernToggleStyle}"
+                                              IsOn="True"/>
+                            </Grid>
+                        </Border>
+
                         <!-- Joystick as Mouse Card -->
                         <Border Style="{StaticResource CardStyle}">
                             <StackPanel Spacing="12">

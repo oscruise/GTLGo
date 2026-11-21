@@ -213,6 +213,7 @@
     <Compile Include="Data\Legion\LegionButtonDesktopProperty.cs" />
     <Compile Include="Data\Legion\LegionButtonPageProperty.cs" />
     <Compile Include="Data\Legion\LegionNintendoLayoutProperty.cs" />
+    <Compile Include="Data\Legion\LegionSwapLegionMenuProperty.cs" />
     <Compile Include="Data\Legion\LegionDesktopControlsProperty.cs" />
     <Compile Include="Data\Legion\LegionVibrationModeProperty.cs" />
     <Compile Include="Data\Legion\LegionControllerProfileProperty.cs" />
