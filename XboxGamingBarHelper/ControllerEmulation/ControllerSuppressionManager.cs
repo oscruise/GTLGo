@@ -39,6 +39,11 @@ namespace XboxGamingBarHelper.ControllerEmulation
         private int lastEnableHideTargetMode;
         private IReadOnlyCollection<string> lastEnableExcludedDeviceIds;
         private DateTime lastRestartCompletedUtc = DateTime.MinValue;
+        // GTLGo: vigilante de instancias nuevas del control (ver WatchNewInstances).
+        private System.Threading.Timer newInstanceWatchdog;
+        private int followUpPending;
+        // GTLGo: el vigilante enumera cada 20 s sin escribir la lista de candidatos en el log.
+        [ThreadStatic] private static bool quietEnumeration;
         private const string XboxGamingOverlayPackageName = "Microsoft.XboxGamingOverlay";
         private const string XboxGamingOverlayPackageFamilySuffix = "_8wekyb3d8bbwe";
         private const string XboxGamingAppPackageName = "Microsoft.GamingApp";
@@ -144,6 +149,12 @@ namespace XboxGamingBarHelper.ControllerEmulation
         public ControllerSuppressionManager()
         {
             EnsureCliResolved(logMissing: true);
+            // GTLGo: cada 20 s, mientras HidHide oculta el control, las instancias nuevas del control
+            // (el Legion reaparece como IG_01, IG_02... tras cada reinicio de puerto) se ocultan sin
+            // reiniciar nada. El aviso de "control reconectado" no siempre llega: al arrancar el helper
+            // el reinicio de puerto ocurre antes de suscribirse, y el 21-nov 16:41:14 IG_01 quedo
+            // visible para RetroBat (doble entrada) toda la tarde.
+            newInstanceWatchdog = new System.Threading.Timer(_ => WatchNewInstances("vigilante"), null, 20000, 20000);
 
             // Register the helper on the HidHide allowlist proactively at startup.
             // Previously this only fired on first emulation Enable, which made
@@ -707,6 +718,83 @@ namespace XboxGamingBarHelper.ControllerEmulation
             }
 
             lastRestartCompletedUtc = DateTime.UtcNow;
+            ScheduleFollowUpAfterRestart();
+        }
+
+        /// <summary>
+        /// GTLGo: tras reiniciar el puerto del control, sus interfaces vuelven con un id de instancia
+        /// nuevo (IG_00 -> IG_01) que HidHide no cubre. A los 3 s (y reintentando dentro de
+        /// HideNewInstancesWithoutRestartLocked) se ocultan, sin depender del aviso de reconexion.
+        /// </summary>
+        private void ScheduleFollowUpAfterRestart()
+        {
+            if (System.Threading.Interlocked.Exchange(ref followUpPending, 1) == 1)
+            {
+                return;
+            }
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    await System.Threading.Tasks.Task.Delay(3000);
+                    WatchNewInstances("tras reiniciar el puerto");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"HidHide follow-up after restart failed: {ex.Message}");
+                }
+                finally
+                {
+                    System.Threading.Interlocked.Exchange(ref followUpPending, 0);
+                }
+            });
+        }
+
+        /// <summary>
+        /// GTLGo: oculta las interfaces del control presentes que deberian estar ocultas y no lo
+        /// estan (solo agrega, nunca reinicia). Sin cambios no escribe en el log.
+        /// </summary>
+        private void WatchNewInstances(string why)
+        {
+            try
+            {
+                lock (syncRoot)
+                {
+                    if (!cloakingEnabled)
+                    {
+                        return;
+                    }
+                    if (!TryGetApiService(out IHidHideControlService service, logMissing: false))
+                    {
+                        return;
+                    }
+                    HashSet<string> excluded = new HashSet<string>(lastEnableExcludedDeviceIds ?? new string[0], StringComparer.OrdinalIgnoreCase);
+                    RefreshHiddenDeviceIdsFromApi(service);
+                    int added = 0;
+                    List<string> present;
+                    quietEnumeration = true;
+                    try { present = EnumerateDeviceInstanceIds(lastEnableDeviceType, lastEnableHideTargetMode).ToList(); }
+                    finally { quietEnumeration = false; }
+                    foreach (string id in present)
+                    {
+                        if (excluded.Contains(id) || hiddenDeviceIds.Contains(id)) continue;
+                        if (TryApiAddBlockedInstanceId(service, id))
+                        {
+                            hiddenDeviceIds.Add(id);
+                            added++;
+                            Logger.Info($"HidHide ({why}): instancia del control que estaba visible, ahora oculta: '{id}'");
+                        }
+                    }
+                    if (added > 0 && !service.IsActive)
+                    {
+                        service.IsActive = true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug($"HidHide watch ({why}) failed: {ex.Message}");
+            }
         }
 
         private static bool ShouldRestartDevice(string deviceInstanceId, bool includeIgNodes)
@@ -1749,7 +1837,8 @@ namespace XboxGamingBarHelper.ControllerEmulation
                 List<string> allCandidates = deviceInstanceIds.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 foreach (string id in allCandidates)
                 {
-                    Logger.Info($"HidHide Legion candidate: '{id}' -> {(IsLegionSuppressibleGamepadId(id) ? "HIDE" : "keep visible")}");
+                    if (!quietEnumeration)
+                        Logger.Info($"HidHide Legion candidate: '{id}' -> {(IsLegionSuppressibleGamepadId(id) ? "HIDE" : "keep visible")}");
                 }
 
                 List<string> filtered = allCandidates
@@ -1758,7 +1847,8 @@ namespace XboxGamingBarHelper.ControllerEmulation
 
                 if (filtered.Count == 0)
                 {
-                    Logger.Warn("HidHide native target filter found no Legion gamepad interfaces; skipping native hide to avoid masking control endpoints.");
+                    if (!quietEnumeration)
+                        Logger.Warn("HidHide native target filter found no Legion gamepad interfaces; skipping native hide to avoid masking control endpoints.");
                     return Enumerable.Empty<string>();
                 }
 
@@ -1774,7 +1864,8 @@ namespace XboxGamingBarHelper.ControllerEmulation
 
                 if (filtered.Count == 0)
                 {
-                    Logger.Warn("HidHide native target filter found no Legion Go S gamepad interfaces; skipping native hide to avoid masking non-gamepad endpoints.");
+                    if (!quietEnumeration)
+                        Logger.Warn("HidHide native target filter found no Legion Go S gamepad interfaces; skipping native hide to avoid masking non-gamepad endpoints.");
                     return Enumerable.Empty<string>();
                 }
 
@@ -2162,6 +2253,8 @@ namespace XboxGamingBarHelper.ControllerEmulation
 
         public void Dispose()
         {
+            try { newInstanceWatchdog?.Dispose(); } catch { }
+            newInstanceWatchdog = null;
             Disable();
         }
     }
