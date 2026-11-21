@@ -5132,6 +5132,17 @@
                                             <ComboBoxItem Content="R3 (right stick click)" Tag="r3"/>
                                         </ComboBox>
 
+                                        <!-- GTLGo: back button -> emulated Guide (RetroBat hotkey) -->
+                                        <TextBlock Text="Botón trasero como Guía (atajo de RetroBat)" FontSize="12" Foreground="#CCCCCC" Margin="0,12,0,4"/>
+                                        <ComboBox Style="{StaticResource ModernComboBoxStyle}" x:Name="ViiperBackGuideButtonComboBox" HorizontalAlignment="Stretch">
+                                            <ComboBoxItem Content="Ninguno" Tag="none"/>
+                                            <ComboBoxItem Content="Y1 (trasero izquierdo superior)" Tag="y1"/>
+                                            <ComboBoxItem Content="Y2 (trasero izquierdo inferior)" Tag="y2"/>
+                                            <ComboBoxItem Content="Y3 (trasero derecho)" Tag="y3"/>
+                                            <ComboBoxItem Content="M2 (agarre derecho)" Tag="m2"/>
+                                            <ComboBoxItem Content="M3 (agarre derecho inferior)" Tag="m3"/>
+                                        </ComboBox>
+
                                         <!-- Swap rumble motors -->
                                         <Grid Margin="0,12,0,0">
                                             <Grid.ColumnDefinitions>

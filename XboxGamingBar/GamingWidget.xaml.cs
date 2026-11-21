@@ -1005,6 +1005,7 @@ namespace XboxGamingBar
         private readonly ViiperStringComboProperty viiperGuideButtonMode;
         private readonly ViiperStringComboProperty viiperDesktopButtonTarget;
         private readonly ViiperStringComboProperty viiperPageButtonTarget;
+        private readonly ViiperStringComboProperty viiperBackGuideButton;
         private readonly ViiperSwapRumbleMotorsProperty viiperSwapRumbleMotors;
         private readonly ViiperMirrorLightbarToStickProperty viiperMirrorLightbarToStick;
         private readonly ViiperStickGyroEnabledProperty viiperStickGyroEnabled;
@@ -1745,6 +1746,7 @@ namespace XboxGamingBar
             viiperGuideButtonMode = new ViiperStringComboProperty("Native", Shared.Enums.Function.Viiper_GuideButtonMode, ViiperGuideButtonModeComboBox, this);
             viiperDesktopButtonTarget = new ViiperStringComboProperty("guide", Shared.Enums.Function.Viiper_DesktopButtonTarget, ViiperDesktopButtonTargetComboBox, this);
             viiperPageButtonTarget = new ViiperStringComboProperty("touchpad", Shared.Enums.Function.Viiper_PageButtonTarget, ViiperPageButtonTargetComboBox, this);
+            viiperBackGuideButton = new ViiperStringComboProperty("y2", Shared.Enums.Function.Viiper_BackGuideButton, ViiperBackGuideButtonComboBox, this);
             viiperSwapRumbleMotors = new ViiperSwapRumbleMotorsProperty(ViiperSwapRumbleMotorsToggle, this);
             viiperMirrorLightbarToStick = new ViiperMirrorLightbarToStickProperty(ViiperMirrorLightbarToStickToggle, this);
             viiperStickGyroEnabled = new ViiperStickGyroEnabledProperty(ViiperStickGyroEnabledToggle, this);
@@ -2033,6 +2035,7 @@ namespace XboxGamingBar
                 viiperGuideButtonMode,
                 viiperDesktopButtonTarget,
                 viiperPageButtonTarget,
+                viiperBackGuideButton,
                 viiperSwapRumbleMotors,
                 viiperRumbleIntensity,
                 viiperMirrorLightbarToStick,

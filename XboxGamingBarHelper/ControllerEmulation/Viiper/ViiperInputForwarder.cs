@@ -1084,6 +1084,26 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
             Logger.Info($"VIIPER forwarder front-button targets -> Desktop={_desktopFrontTarget}, Page={_pageFrontTarget}");
         }
 
+        // GTLGo: Legion back button (LegionAux mask) that acts as Guide; 0 = none.
+        private volatile ushort _backGuideMask = LegionAux.Y2;
+
+        /// <summary>GTLGo: choose the back button that acts as the emulated Guide (none|y1|y2|y3|m2|m3).</summary>
+        public void SetBackGuideButton(string button)
+        {
+            ushort mask;
+            switch ((button ?? "").Trim().ToLowerInvariant())
+            {
+                case "y1": mask = LegionAux.Y1; break;
+                case "y2": mask = LegionAux.Y2; break;
+                case "y3": mask = LegionAux.Y3; break;
+                case "m2": mask = LegionAux.M2; break;
+                case "m3": mask = LegionAux.M3; break;
+                default:   mask = 0; break;
+            }
+            _backGuideMask = mask;
+            Logger.Info($"VIIPER forwarder back-button Guide -> {(mask == 0 ? "none" : button)}");
+        }
+
         private static FrontButtonTarget ParseFrontTarget(string s, FrontButtonTarget fallback)
         {
             switch ((s ?? "").Trim().ToLowerInvariant())
@@ -1795,7 +1815,13 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
                         // Guide; in that case honor the guide-button mode (native emulated guide
                         // vs Win+G). Otherwise ApplyConfigurableAuxButtons maps Mode to its target.
                         bool desktopIsGuide = _desktopFrontTarget == FrontButtonTarget.Guide;
+                        // GTLGo: the chosen back button acts as Guide; strip its aux bit so the
+                        // Sony/Nintendo builders don't also map it to a paddle.
+                        ushort backGuideMask = _backGuideMask;
+                        bool backGuide = backGuideMask != 0 && (currentAuxButtons & backGuideMask) != 0;
+                        if (backGuide) currentAuxButtons &= unchecked((ushort)~backGuideMask);
                         bool guidePressed = ((sample.Buttons & ViiperXInput.Guide) != 0)
+                                         || backGuide
                                          || (desktopIsGuide && (currentAuxButtons & LegionAux.Mode) != 0);
                         ApplyGuideModeEdge(guidePressed);
                         if (desktopIsGuide && guideMode == ViiperGuideButtonMode.GameBar)
@@ -1824,7 +1850,7 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
                         {
                             gp.Buttons &= unchecked((ushort)~ViiperXInput.Guide);
                         }
-                        else if (IsGuideHoldActive())
+                        else if (IsGuideHoldActive() || backGuide)
                         {
                             gp.Buttons |= ViiperXInput.Guide;
                         }

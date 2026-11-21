@@ -128,6 +128,10 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
                 {
                     settingsManager.ViiperPageButtonTarget.PropertyChanged += OnFrontButtonTargetChanged;
                 }
+                if (settingsManager.ViiperBackGuideButton != null)
+                {
+                    settingsManager.ViiperBackGuideButton.PropertyChanged += OnBackGuideButtonChanged;
+                }
                 if (settingsManager.ViiperSwapRumbleMotors != null)
                 {
                     settingsManager.ViiperSwapRumbleMotors.PropertyChanged += OnSwapRumbleMotorsChanged;
@@ -784,6 +788,7 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
             forwarder.SetFrontButtonTargets(
                 settingsManager?.ViiperDesktopButtonTarget?.Value ?? "guide",
                 settingsManager?.ViiperPageButtonTarget?.Value ?? "touchpad");
+            forwarder.SetBackGuideButton(settingsManager?.ViiperBackGuideButton?.Value ?? ViiperBackGuideButtonProperty.Default);
             forwarder.SetSwapRumbleMotors(settingsManager?.ViiperSwapRumbleMotors?.Value ?? false);
             forwarder.SetRumbleIntensity(settingsManager?.ViiperRumbleIntensity?.Value ?? 100);
             forwarder.SetMirrorLightbarToStick(settingsManager?.ViiperMirrorLightbarToStick?.Value ?? false);
@@ -994,6 +999,12 @@ namespace XboxGamingBarHelper.ControllerEmulation.Viiper
                     settingsManager?.ViiperPageButtonTarget?.Value ?? "touchpad");
             }
             catch (Exception ex) { Logger.Warn($"OnFrontButtonTargetChanged threw: {ex.Message}"); }
+        }
+
+        private void OnBackGuideButtonChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            try { forwarder.SetBackGuideButton(settingsManager?.ViiperBackGuideButton?.Value ?? ViiperBackGuideButtonProperty.Default); }
+            catch (Exception ex) { Logger.Warn($"OnBackGuideButtonChanged threw: {ex.Message}"); }
         }
 
         private void OnSwapRumbleMotorsChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)

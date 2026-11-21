@@ -613,5 +613,9 @@
         // the same command Legion Space and hhd's "Swap Legion with Menu/View" send).
         // Volatile in the controller: reapplied by the helper on every (re)connect.
         LegionSwapLegionMenu,       // bool
+
+        // GTLGo: back button (none|y1|y2|y3|m2|m3) that acts as the emulated controller's
+        // Guide while controller emulation is on (e.g. a dedicated RetroBat hotkey).
+        Viiper_BackGuideButton,     // string
     }
 }

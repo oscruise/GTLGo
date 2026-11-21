@@ -132,6 +132,12 @@ namespace XboxGamingBarHelper.Settings
             get { return viiperDesktopButtonTarget; }
         }
 
+        private readonly ViiperBackGuideButtonProperty viiperBackGuideButton;
+        public ViiperBackGuideButtonProperty ViiperBackGuideButton
+        {
+            get { return viiperBackGuideButton; }
+        }
+
         private readonly ViiperPageButtonTargetProperty viiperPageButtonTarget;
         public ViiperPageButtonTargetProperty ViiperPageButtonTarget
         {
@@ -275,6 +281,7 @@ namespace XboxGamingBarHelper.Settings
             viiperNintendoSubDevice = new ViiperNintendoSubDeviceProperty(this);
             viiperDesktopButtonTarget = new ViiperDesktopButtonTargetProperty(this);
             viiperPageButtonTarget = new ViiperPageButtonTargetProperty(this);
+            viiperBackGuideButton = new ViiperBackGuideButtonProperty(this);
             viiperGuideButtonMode = new ViiperGuideButtonModeProperty(this);
             viiperSwapRumbleMotors = new ViiperSwapRumbleMotorsProperty(this);
             viiperRumbleIntensity = new ViiperRumbleIntensityProperty(this);

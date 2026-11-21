@@ -65,4 +65,35 @@ namespace XboxGamingBarHelper.Settings
             LocalSettingsHelper.SetValue(SettingsKey, Value ?? Default);
         }
     }
+
+    /// <summary>
+    /// GTLGo: Legion back button that acts as the emulated controller's Guide/PS button while
+    /// controller emulation is active (none|y1|y2|y3|m2|m3). Lets RetroBat use Guide as a
+    /// dedicated hotkey so Select stays free. Default "y2" (the user's choice).
+    /// </summary>
+    internal class ViiperBackGuideButtonProperty : HelperProperty<string, SettingsManager>
+    {
+        public const string Default = "y2";
+        private const string SettingsKey = "ViiperBackGuideButton";
+
+        public ViiperBackGuideButtonProperty(SettingsManager inManager)
+            : base(LoadFromSettings(), null, Function.Viiper_BackGuideButton, inManager)
+        {
+            Logger.Info($"ViiperBackGuideButton loaded: {Value}");
+        }
+
+        private static string LoadFromSettings()
+        {
+            if (LocalSettingsHelper.TryGetValue<string>(SettingsKey, out var value) && !string.IsNullOrEmpty(value))
+                return value;
+            return Default;
+        }
+
+        protected override void NotifyPropertyChanged(string propertyName = "")
+        {
+            base.NotifyPropertyChanged(propertyName);
+            Logger.Info($"ViiperBackGuideButton changed: {Value}");
+            LocalSettingsHelper.SetValue(SettingsKey, Value ?? Default);
+        }
+    }
 }

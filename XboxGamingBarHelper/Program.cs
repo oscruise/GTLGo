@@ -1650,6 +1650,7 @@ namespace XboxGamingBarHelper
                 settingsManager.ViiperGuideButtonMode,
                 settingsManager.ViiperDesktopButtonTarget,
                 settingsManager.ViiperPageButtonTarget,
+                settingsManager.ViiperBackGuideButton,
                 settingsManager.ViiperSwapRumbleMotors,
                 settingsManager.ViiperRumbleIntensity,
                 settingsManager.GoTweaksLightingConfig,
